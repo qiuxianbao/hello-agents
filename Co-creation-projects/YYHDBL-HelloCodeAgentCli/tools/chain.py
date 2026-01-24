@@ -1,4 +1,6 @@
-"""工具链管理器 - HelloAgents工具链式调用支持"""
+"""工具链管理器 - HelloAgents工具链式调用支持
+在实际应用中，Agent经常需要组合使用多个工具来完成复杂任务。我们可以设计一个工具链管理器来支持这种场景
+"""
 
 from typing import List, Dict, Any, Optional
 from .registry import ToolRegistry

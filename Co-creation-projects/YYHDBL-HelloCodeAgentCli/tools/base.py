@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, List
 from pydantic import BaseModel
 
+# 为了支持复杂的参数验证和文档生成
 class ToolParameter(BaseModel):
     """工具参数定义"""
     name: str
@@ -12,6 +13,7 @@ class ToolParameter(BaseModel):
     required: bool = True
     default: Any = None
 
+# Abstract Base Classes
 class Tool(ABC):
     """工具基类"""
     
@@ -41,9 +43,12 @@ class Tool(ABC):
             "description": self.description,
             "parameters": [param.dict() for param in self.get_parameters()]
         }
-    
+
+    # 知识点：print(obj)优先调用__str__
     def __str__(self) -> str:
         return f"Tool(name={self.name})"
-    
+
+    # 知识点：representation
+    # 交互式查看优先调用__repr__
     def __repr__(self) -> str:
         return self.__str__()

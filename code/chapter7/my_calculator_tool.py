@@ -4,13 +4,16 @@ import operator
 import math
 from hello_agents import ToolRegistry
 
+# 自定义工具
 def my_calculate(expression: str) -> str:
     """简单的数学计算函数"""
+    # 知识点：if not可直接判断对象是否为空/无效
     if not expression.strip():
         return "计算表达式不能为空"
 
     # 支持的基本运算
     operators = {
+        # 知识点：ast（abstract syntax tree）
         ast.Add: operator.add,      # +
         ast.Sub: operator.sub,      # -
         ast.Mult: operator.mul,     # *

@@ -4,6 +4,7 @@ from typing import Optional, Any, Callable
 import json
 from .base import Tool
 
+
 class ToolRegistry:
     """
     HelloAgents工具注册表
@@ -16,6 +17,7 @@ class ToolRegistry:
 
     def __init__(self):
         self._tools: dict[str, Tool] = {}
+        # name, description, func
         self._functions: dict[str, dict[str, Any]] = {}
 
     def register_tool(self, tool: Tool):
@@ -85,7 +87,7 @@ class ToolRegistry:
             tool = self._tools[name]
             try:
                 raw = (input_text or "").strip()
-                
+
                 # 预处理：如果输入包含换行和另一个 Action，只取第一行
                 if '\n' in raw and 'Action:' in raw:
                     lines = raw.split('\n')
@@ -143,9 +145,9 @@ class ToolRegistry:
                                 elif c == '}':
                                     depth -= 1
                                     if depth == 0:
-                                        return text[start:i+1]
+                                        return text[start:i + 1]
                             return None
-                        
+
                         json_str = extract_first_json_object(raw)
                         if json_str:
                             obj = json.loads(json_str)
@@ -153,6 +155,7 @@ class ToolRegistry:
                         pass
 
                 if isinstance(obj, dict):
+                    # 调用tool#run方法
                     return tool.run(obj)
 
                 # 2) 单参数兜底：如果工具只有一个必填参数，把 input_text 映射到该参数名
@@ -176,6 +179,7 @@ class ToolRegistry:
         elif name in self._functions:
             func = self._functions[name]["func"]
             try:
+                # 调用函数fun(入参)，因为注册的就是一个
                 return func(input_text)
             except Exception as e:
                 return f"错误：执行工具 '{name}' 时发生异常: {str(e)}"

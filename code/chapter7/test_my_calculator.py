@@ -5,6 +5,14 @@ from my_calculator_tool import create_calculator_registry
 # 加载环境变量
 load_dotenv()
 
+
+def test_if_not():
+    expression = ""
+    # 知识点：检验空值
+    if not expression.strip():
+        print("blank")
+
+
 def test_calculator_tool():
     """测试自定义计算器工具"""
 
@@ -35,6 +43,7 @@ def test_with_simple_agent():
     llm = HelloAgentsLLM()
 
     # 创建包含计算器的注册表
+    # 这里注册了my_calculate(expression: str) -> str
     registry = create_calculator_registry()
 
     print("🤖 与SimpleAgent集成测试:")

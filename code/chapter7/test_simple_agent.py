@@ -7,7 +7,7 @@ from my_simple_agent import MySimpleAgent
 # 加载环境变量
 load_dotenv()
 
-# 创建LLM实例
+# 创建LLM实例-框架自动检测provider
 llm = HelloAgentsLLM()
 
 # 测试1：基础对话Agent（无工具）

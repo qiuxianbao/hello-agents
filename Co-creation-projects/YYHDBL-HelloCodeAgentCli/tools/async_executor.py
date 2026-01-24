@@ -1,4 +1,6 @@
-"""异步工具执行器 - HelloAgents异步工具执行支持"""
+"""异步工具执行器 - HelloAgents异步工具执行支持
+对于耗时的工具操作，我们可以提供异步执行支持
+"""
 
 import asyncio
 import concurrent.futures
@@ -11,16 +13,19 @@ class AsyncToolExecutor:
 
     def __init__(self, registry: ToolRegistry, max_workers: int = 4):
         self.registry = registry
+        # 知识点：异步线程池，执行器
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
 
     async def execute_tool_async(self, tool_name: str, input_data: str) -> str:
         """异步执行单个工具"""
+        # events
         loop = asyncio.get_event_loop()
         
         def _execute():
             return self.registry.execute_tool(tool_name, input_data)
         
         try:
+            # 运行事件
             result = await loop.run_in_executor(self.executor, _execute)
             return result
         except Exception as e:
@@ -53,6 +58,7 @@ class AsyncToolExecutor:
         
         # 等待所有任务完成
         results = []
+        # results = asyncio.gather(*async_tasks);
         for i, task, async_task in async_tasks:
             try:
                 result = await async_task

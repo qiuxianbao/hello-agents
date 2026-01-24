@@ -4,6 +4,7 @@ from typing import Optional
 from openai import OpenAI
 from hello_agents import HelloAgentsLLM
 
+# 知识点：继承HelloAgentsLLM
 class MyLLM(HelloAgentsLLM):
     def __init__(
         self,
