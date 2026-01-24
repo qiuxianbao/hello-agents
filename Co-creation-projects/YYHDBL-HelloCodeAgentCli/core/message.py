@@ -1,9 +1,12 @@
-"""消息系统"""
+"""消息系统
+定义了框架内统一的消息格式，确保了智能体与模型之间信息传递的标准化
+"""
 
 from typing import Optional, Dict, Any, Literal
 from datetime import datetime
 from pydantic import BaseModel
 
+# 知识点：定义消息角色的类型，限制其取值。这直接对应 OpenAI API 的规范，保证了类型安全
 MessageRole = Literal["user", "assistant", "system", "tool"]
 
 class Message(BaseModel):

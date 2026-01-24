@@ -6,6 +6,12 @@ from openai import OpenAI
 
 from .exceptions import HelloAgentsException
 
+"""
+1.多提供商支持
+2.本地模型集成
+3.自动检测机制
+"""
+
 # 支持的LLM提供商
 SUPPORTED_PROVIDERS = Literal[
     "openai", "deepseek", "qwen", "modelscope",

@@ -38,7 +38,7 @@ class ContextPacket:
         if self.token_count == 0:
             self.token_count = count_tokens(self.content)
 
-
+# 知识点：装饰器
 @dataclass
 class ContextConfig:
     """上下文构建配置"""

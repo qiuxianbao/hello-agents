@@ -1,4 +1,6 @@
-"""Agent基类"""
+"""Agent基类
+定义了所有智能体的抽象基类（ Agent ），为后续实现不同类型的智能体提供了统一的接口和规范
+"""
 
 from abc import ABC, abstractmethod
 from typing import Optional
@@ -6,6 +8,7 @@ from .message import Message
 from .llm import HelloAgentsLLM
 from .config import Config
 
+# 知识点：ABC（Abstract Base Classes）
 class Agent(ABC):
     """Agent基类"""
     
@@ -21,7 +24,11 @@ class Agent(ABC):
         self.system_prompt = system_prompt
         self.config = config or Config()
         self._history: list[Message] = []
-    
+
+    """
+    知识点：抽象方法
+    pass关键字作用：什么都不做，无需实现，避免报错
+    """
     @abstractmethod
     def run(self, input_text: str, **kwargs) -> str:
         """运行Agent"""

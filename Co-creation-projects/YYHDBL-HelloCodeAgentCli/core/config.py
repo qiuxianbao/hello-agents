@@ -1,4 +1,6 @@
-"""配置管理 - Code Agent CLI 统一配置"""
+"""配置管理 - Code Agent CLI 统一配置
+将代码中硬编码配置参数集中起来，并支持从环境变量中读取。
+"""
 
 import os
 from typing import Optional, Dict, Any, List
@@ -16,6 +18,7 @@ class Config(BaseModel):
     """
     
     # ==================== 基础配置 ====================
+    # 知识点：Field用于精细化字段属性，可设置默认值、描述、验证规则等
     project_name: str = Field(default="code_agent", description="项目名称")
     debug: bool = Field(default=False, description="调试模式")
     log_level: str = Field(default="INFO", description="日志级别")
@@ -62,7 +65,10 @@ class Config(BaseModel):
     confirm_large_changes: bool = Field(default=True, description="大规模变更需要确认")
     large_change_threshold_files: int = Field(default=6, gt=0, description="大规模变更文件数阈值")
     large_change_threshold_lines: int = Field(default=400, gt=0, description="大规模变更行数阈值")
-    
+
+    # 知识点：单例。类方法，用于从环境变量中创建Config实例
+    # 普通方法：第一个参数是 self（实例）
+    # 类方法：第一个参数是 cls（类本身）
     @classmethod
     def from_env(cls, **overrides) -> "Config":
         """从环境变量创建配置
@@ -90,7 +96,8 @@ class Config(BaseModel):
         
         # 合并覆盖配置
         env_config.update(overrides)
-        
+
+        # 使用cls创建类的新实例
         return cls(**env_config)
     
     def get_state_dir(self, repo_root: Path) -> Path:
