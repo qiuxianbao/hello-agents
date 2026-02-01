@@ -1,4 +1,9 @@
 """情景记忆实现
+它负责长期存储具体的交互事件和智能体的学习经历。
+与工作记忆不同，情景记忆包含了丰富的上下文信息，并支持按时间序列或主题进行回顾式检索，是智能体“复盘”和学习过往经验的基础
+
+情景记忆负责存储具体的事件和经历，它的设计重点在于保持事件的完整性和时间序列关系。情景记忆采用了
+SQLite+Qdrant的混合存储方案，SQLite负责结构化数据的存储和复杂查询，Qdrant负责高效的向量检索。
 
 按照第8章架构设计的情景记忆，提供：
 - 具体交互事件存储
@@ -68,9 +73,11 @@ class EpisodicMemory(BaseMemory):
         db_dir = self.config.storage_path if hasattr(self.config, 'storage_path') else "./memory_data"
         os.makedirs(db_dir, exist_ok=True)
         db_path = os.path.join(db_dir, "memory.db")
+        # SQLite
         self.doc_store = SQLiteDocumentStore(db_path=db_path)
 
         self.embedder = None
+        # Qdrant
         self.vector_store = None
 
         disable_vec = bool(getattr(self.config, "disable_vector_store", False))

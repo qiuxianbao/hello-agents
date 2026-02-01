@@ -1,4 +1,7 @@
-"""记忆管理器 - 记忆核心层的统一管理接口"""
+"""记忆管理器 - 记忆核心层的统一管理接口
+负责核心的记忆管理逻辑
+
+"""
 
 from typing import List, Dict, Any, Optional, Union
 from datetime import datetime
@@ -198,7 +201,11 @@ class MemoryManager:
         max_age_days: int = 30
     ) -> int:
         """记忆遗忘机制
-        
+        支持三种策略：
+        1.基于重要性（删除不重要的记忆）
+        2.基于时间（删除过时的记忆）
+        3.基于容量（当存储接近上限时删除最不重要的记忆）
+
         Args:
             strategy: 遗忘策略 ("importance_based", "time_based", "capacity_based")
             threshold: 遗忘阈值
@@ -223,7 +230,8 @@ class MemoryManager:
         to_type: str = "episodic",
         importance_threshold: float = 0.7
     ) -> int:
-        """记忆整合 - 将重要的短期记忆转换为长期记忆
+        """记忆整合 - 将重要（重要性阈值）的短期记忆转换为长期记忆
+        默认设置是将重要性超过0.7的工作记忆转换为情景记忆，这个阈值确保只有真正重要的信息才会被长期保存。
 
         Args:
             from_type: 源记忆类型
@@ -245,6 +253,7 @@ class MemoryManager:
         all_memories = source_memory.get_all()
         candidates = [
             m for m in all_memories
+            # 筛选出需要整合的记忆
             if m.importance >= importance_threshold
         ]
 

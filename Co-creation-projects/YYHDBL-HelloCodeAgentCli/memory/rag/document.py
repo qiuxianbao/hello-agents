@@ -1,4 +1,4 @@
-"""文档处理模块"""
+"""文档处理模块，多格式解析"""
 
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass

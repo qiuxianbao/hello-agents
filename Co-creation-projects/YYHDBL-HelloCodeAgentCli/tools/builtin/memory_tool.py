@@ -1,4 +1,5 @@
 """记忆工具
+专注于用户接口和参数处理
 
 为HelloAgents框架提供记忆能力的工具实现。
 可以作为工具添加到任何Agent中，让Agent具备记忆功能。
@@ -37,7 +38,7 @@ class MemoryTool(Tool):
 
         self.memory_manager = MemoryManager(
             config=self.memory_config,
-            user_id=user_id,
+            user_id=user_id, # 记录是哪个用户
             enable_working="working" in self.memory_types,
             enable_episodic="episodic" in self.memory_types,
             enable_semantic="semantic" in self.memory_types,
@@ -95,6 +96,7 @@ class MemoryTool(Tool):
             ToolParameter(name="importance_threshold", type="number", description="整合重要性阈值（默认0.7）", required=False, default=0.7),
         ]
 
+    # 采用分发处理的架构模式
     def execute(self, action: str, **kwargs) -> str:
         """执行记忆操作
 
@@ -103,11 +105,18 @@ class MemoryTool(Tool):
         - search: 搜索记忆
         - summary: 获取记忆摘要
         - stats: 获取统计信息
+        - update: 更新记忆
+        - remove: 删除记忆
+        - forget: 遗忘记忆（多种策略）
+        - consolidate: 整合记忆（短期→长期）
+        - clear_all: 清空所有记忆
         """
 
         if action == "add":
+            # 添加记忆
             return self._add_memory(**kwargs)
         elif action == "search":
+            # 搜索记忆
             return self._search_memory(**kwargs)
         elif action == "summary":
             return self._get_summary(**kwargs)
@@ -118,8 +127,10 @@ class MemoryTool(Tool):
         elif action == "remove":
             return self._remove_memory(**kwargs)
         elif action == "forget":
+            # 遗忘记忆
             return self._forget(**kwargs)
         elif action == "consolidate":
+            # 整合记忆
             return self._consolidate(**kwargs)
         elif action == "clear_all":
             return self._clear_all()
@@ -143,12 +154,14 @@ class MemoryTool(Tool):
 
             # 感知记忆文件支持：注入 raw_data 与模态
             if memory_type == "perceptual" and file_path:
+                # 根据扩展名推断模态
                 inferred = modality or self._infer_modality(file_path)
                 metadata.setdefault("modality", inferred)
                 metadata.setdefault("raw_data", file_path)
 
             # 添加会话信息到元数据
             metadata.update({
+                # 设置会话ID（确保每个记忆都有明确的会话归属）
                 "session_id": self.current_session_id,
                 "timestamp": datetime.now().isoformat()
             })
@@ -186,7 +199,9 @@ class MemoryTool(Tool):
         memory_type: str = None,  # 添加单数形式的参数支持
         min_importance: float = 0.1
     ) -> str:
-        """搜索记忆"""
+        """搜索记忆
+        search 操作是记忆系统的核心功能，它需要在大量记忆中快速找到与查询最相关的内容。它涉及语义理解、相关性计算和结果排序等多个环节。
+        """
         try:
             # 处理单数形式的memory_type参数
             if memory_type and not memory_types:
@@ -379,7 +394,9 @@ class MemoryTool(Tool):
             return f"❌ 遗忘记忆失败: {str(e)}"
 
     def _consolidate(self, from_type: str = "working", to_type: str = "episodic", importance_threshold: float = 0.7) -> str:
-        """整合记忆（将重要的短期记忆提升为长期记忆）"""
+        """整合记忆（将重要的短期记忆提升为长期记忆）
+        按照重要程度提升
+        """
         try:
             count = self.memory_manager.consolidate_memories(
                 from_type=from_type,

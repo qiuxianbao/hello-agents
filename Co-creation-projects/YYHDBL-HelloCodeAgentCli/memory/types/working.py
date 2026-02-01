@@ -1,4 +1,11 @@
 """工作记忆实现
+扮演着智能体“短期记忆”的角色，主要用于存储当前对话的上下文信息。
+
+工作记忆是记忆系统中最活跃的部分，它负责存储当前对话会话中的临时信息。
+为确保高速访问和响应，其容量被有意限制（例如，默认50条），并且生命周期与单个会话绑定，会话结束后便会自动清理。
+
+工作记忆采用了纯内存存储方案，配合TTL（Time To Live）机制进行自动清理。
+这种设计的优势在于访问速度极快，但也意味着工作记忆的内容在系统重启后会丢失。这种特性正好符合工作记忆的定位，存储临时的、易变的信息
 
 按照第8章架构设计的工作记忆，提供：
 - 短期上下文管理
@@ -30,6 +37,7 @@ class WorkingMemory(BaseMemory):
         self.max_capacity = self.config.working_memory_capacity
         self.max_tokens = self.config.working_memory_tokens
         # 纯内存TTL（分钟），可通过在 MemoryConfig 上挂载 working_memory_ttl_minutes 覆盖
+        # 知识点：getattr()
         self.max_age_minutes = getattr(self.config, 'working_memory_ttl_minutes', 120)
         self.current_tokens = 0
         self.session_start = datetime.now()
@@ -46,8 +54,27 @@ class WorkingMemory(BaseMemory):
         self._expire_old_memories()
         # 计算优先级（重要性 + 时间衰减）
         priority = self._calculate_priority(memory_item)
-        
+
         # 添加到堆中
+        """
+        知识点：堆（Heap）是一种特殊的树状数据结构，具有以下重要特性：
+        1.堆序性质（Heap Property）：
+            最大堆（Max Heap）：父节点的值大于或等于其子节点的值，根节点是最大值
+            最小堆（Min Heap）：父节点的值小于或等于其子节点的值，根节点是最小值
+            
+        2.完全二叉树结构：
+        堆是一棵完全二叉树，除了最后一层外，其他层都被完全填满
+        最后一层的节点尽可能靠左排列
+        
+        3.数组表示：
+        堆通常用数组表示，对于索引 i 的节点：
+        父节点索引：(i-1)//2
+        左子节点索引：2*i+1
+        右子节点索引：2*i+2
+        
+        Java 中有一个叫PriorityQueue
+        Python 的 heapq 模块提供了最小堆的实现
+        """
         heapq.heappush(self.memory_heap, (-priority, memory_item.timestamp, memory_item))
         self.memories.append(memory_item)
         
@@ -55,12 +82,20 @@ class WorkingMemory(BaseMemory):
         self.current_tokens += len(memory_item.content.split())
         
         # 检查容量限制
+        # 超过限制，则删除最低优先级项
         self._enforce_capacity_limits()
         
         return memory_item.id
     
     def retrieve(self, query: str, limit: int = 5, user_id: str = None, **kwargs) -> List[MemoryItem]:
-        """检索工作记忆 - 混合语义向量检索和关键词匹配"""
+        """检索工作记忆 - 混合语义向量检索和关键词匹配
+
+        工作记忆的检索采用了混合检索策略，首先尝试使用TF-IDF向量化进行语义检索，如果失败则回退到关键词匹配。
+        这种设计确保了在各种环境下都能提供可靠的检索服务。
+
+        评分算法结合了语义相似度、时间衰减和重要性权重，最终得分公式为： (相似度 × 时间衰减) × (0.8 + 重要性 × 0.4) 。
+
+        """
         # 过期清理
         self._expire_old_memories()
         if not self.memories:
@@ -80,7 +115,8 @@ class WorkingMemory(BaseMemory):
         # 尝试语义向量检索（如果有嵌入模型）
         vector_scores = {}
         try:
-            # 简单的语义相似度计算（使用TF-IDF或其他轻量级方法）
+            # 简单的语义相似度计算（使用TF-IDF[词频-逆文档频率]或其他轻量级方法）
+            # scikit-learn 是一个基于 Python 的开源机器学习库，专注于提供简单高效的工具，用于数据挖掘和数据分析
             from sklearn.feature_extraction.text import TfidfVectorizer
             from sklearn.metrics.pairwise import cosine_similarity
             import numpy as np
@@ -127,7 +163,7 @@ class WorkingMemory(BaseMemory):
                 if intersection:
                     keyword_score = len(intersection) / len(query_words.union(content_words)) * 0.8
 
-            # 混合分数：向量检索 + 关键词匹配
+            # 混合分数：向量检索 + 关键词匹配（向量检索权重为70，关键字权重为30）
             if vector_score > 0:
                 base_relevance = vector_score * 0.7 + keyword_score * 0.3
             else:
@@ -146,6 +182,8 @@ class WorkingMemory(BaseMemory):
 
         # 按分数排序并返回
         scored_memories.sort(key=lambda x: x[0], reverse=True)
+        # 列表推导式，用于从排序后的记忆项中提取实际的记忆对象并返回
+        # _, memory：解包元组，使用 _ 忽略元组中score得分
         return [memory for _, memory in scored_memories[:limit]]
     
     def update(
@@ -329,7 +367,7 @@ class WorkingMemory(BaseMemory):
         # 基础优先级 = 重要性
         priority = memory.importance
         
-        # 时间衰减
+        # 时间衰减，每6h，自乘 self.config.decay_factor 衰减因子
         time_decay = self._calculate_time_decay(memory.timestamp)
         priority *= time_decay
         
@@ -358,6 +396,7 @@ class WorkingMemory(BaseMemory):
         """按TTL清理过期记忆，并同步更新堆与token计数"""
         if not self.memories:
             return
+        # 当前时间 - (max_age_minutes按照分钟格式转换成时间)
         cutoff_time = datetime.now() - timedelta(minutes=self.max_age_minutes)
         # 过滤保留的记忆
         kept: List[MemoryItem] = []

@@ -1,4 +1,11 @@
 """语义记忆实现
+与具体事件相对应的是语义记忆 (Semantic Memory)，它存储的是更为抽象的知识、概念和规则。
+例如，通过对话了解到的用户偏好、需要长期遵守的指令或领域知识点，都适合存放在这里。
+这部分记忆具有高度的持久性和重要性，是智能体形成“知识体系”和进行关联推理的核心。
+
+语义记忆的设计重点在于知识的结构化
+表示和智能推理能力。语义记忆采用了Neo4j图数据库和Qdrant向量数据库的混合架构，这种设计让系统既能进行快
+速的语义检索，又能利用知识图谱进行复杂的关系推理。
 
 结合向量检索和知识图谱的混合语义记忆，使用：
 - HuggingFace 中文预训练模型进行文本嵌入
@@ -99,6 +106,7 @@ class SemanticMemory(BaseMemory):
         super().__init__(config, storage_backend)
         
         # 嵌入模型（统一提供）
+        # 定义及实现在 embedding.py
         self.embedding_model = None
         self._init_embedding_model()
         
@@ -112,6 +120,7 @@ class SemanticMemory(BaseMemory):
         self.relations: List[Relation] = []
         
         # 实体识别器
+        # spacy，NLP（自然语言处理）
         self.nlp = None
         self._init_nlp()
         
@@ -220,7 +229,8 @@ class SemanticMemory(BaseMemory):
             embedding = self.embedding_model.encode(memory_item.content)
             self.memory_embeddings[memory_item.id] = embedding
             
-            # 2. 提取实体和关系
+            # 2. 提取实体和关系，用于构建结构化知识
+            # TODO: 20226-02-01
             entities = self._extract_entities(memory_item.content)
             relations = self._extract_relations(memory_item.content, entities)
             
@@ -529,7 +539,15 @@ class SemanticMemory(BaseMemory):
             vector_score = result["vector_score"]
             graph_score = result["graph_score"]
             importance = result.get("importance", 0.5)
-            
+
+
+            """
+            语义记忆的评分公式为： (向量相似度 × 0.7 + 图相似度 × 0.3) × (0.8 + 重要性 × 0.4) 。
+            这种设计的核心思想是：
+                向量检索权重（0.7）：语义相似度是主要因素，确保检索结果与查询语义相关
+                图检索权重（0.3）：关系推理作为补充，发现概念间的隐含关联
+                重要性权重范围[0.8, 1.2]：避免重要性过度影响相似度排序，保持检索的准确性
+            """
             # 新评分算法：向量检索纯基于相似度，重要性作为加权因子
             # 基础相似度得分（不受重要性影响）
             base_relevance = vector_score * 0.7 + graph_score * 0.3

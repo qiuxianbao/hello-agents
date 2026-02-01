@@ -1,0 +1,42 @@
+sequenceDiagram
+    participant User as 用户
+    participant MT as MemoryTool
+    participant MM as MemoryManager
+    participant WM as WorkingMemory
+    participant UUID as UUID生成器
+    participant Heapq as Heapq堆
+
+    User->>MT: run(parameters={"action": "add", "content": "test", "memory_type": "working"})
+    activate MT
+    MT->>MT: validate_parameters()
+    MT->>MT: execute("add", content="test", memory_type="working")
+    MT->>MT: _add_memory(content="test", memory_type="working")
+    alt 检查会话ID
+        alt 会话ID为空
+            MT->>MT: 生成current_session_id
+        end
+    end
+    MT->>MM: add_memory(content="test", memory_type="working", importance=0.5, metadata={...}, auto_classify=False)
+    activate MM
+    Note over MM: 创建MemoryItem对象
+    MM->>UUID: str(uuid.uuid4())
+    activate UUID
+    UUID-->>MM: memory_id
+    deactivate UUID
+    MM->>WM: WorkingMemory.add(memory_item)
+    activate WM
+    WM->>WM: _expire_old_memories()
+    WM->>WM: _calculate_priority(memory_item)
+    WM->>Heapq: heapq.heappush(memory_heap, (-priority, timestamp, memory_item))
+    activate Heapq
+    Heapq-->>WM: 堆操作完成
+    deactivate Heapq
+    WM->>WM: 将memory_item添加到memories列表
+    WM->>WM: 更新current_tokens计数
+    WM->>WM: _enforce_capacity_limits()
+    WM-->>MM: 返回memory_id
+    deactivate WM
+    MM-->>MT: 返回memory_id
+    deactivate MM
+    MT-->>User: "✅ 记忆已添加 (ID: ...)"
+    deactivate MT
