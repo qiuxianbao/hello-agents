@@ -1,3 +1,5 @@
+"""RAG管道，端到端处理"""
+
 from typing import List, Dict, Optional, Any
 import os
 import hashlib
@@ -13,6 +15,7 @@ def _get_markitdown_instance():
     Get a configured MarkItDown instance for document conversion.
     """
     try:
+        # 知识点：markdown文档转换
         from markitdown import MarkItDown
         return MarkItDown()
     except ImportError:
@@ -50,11 +53,21 @@ def _convert_to_markdown(path: str) -> str:
     """
     Universal document reader using MarkItDown with enhanced PDF processing.
     Converts any supported file format to markdown text.
+
+    MarkItDown是微软开源的通用文档转换工具，它是HelloAgents RAG系统的核心组件，负责将任意格式的文档统一转换为结构化的Markdown文本。
+    无论输入是PDF、Word、Excel、图片还是音频，最终都会转换为标准的Markdown格式，然后进入统一的分块、向量化和存储流程。
+
+    支持格式：
+    - 文档：PDF、Word、Excel、PowerPoint
+    - 图像：JPG、PNG、GIF（通过OCR）
+    - 音频：MP3、WAV、M4A（通过转录）
+    - 文本：TXT、CSV、JSON、XML、HTML
+    - 代码：Python、JavaScript、Java等
     """
     if not os.path.exists(path):
         return ""
     
-    # 对PDF文件使用增强处理
+    # 对PDF文件使用**增强处理**
     ext = (os.path.splitext(path)[1] or '').lower()
     if ext == '.pdf':
         return _enhanced_pdf_processing(path)
@@ -205,20 +218,21 @@ def _detect_lang(sample: str) -> str:
 
 
 def _is_cjk(ch: str) -> bool:
+    """判断是否为CJK字符"""
     code = ord(ch)
     return (
-        0x4E00 <= code <= 0x9FFF or
-        0x3400 <= code <= 0x4DBF or
-        0x20000 <= code <= 0x2A6DF or
-        0x2A700 <= code <= 0x2B73F or
-        0x2B740 <= code <= 0x2B81F or
-        0x2B820 <= code <= 0x2CEAF or
-        0xF900 <= code <= 0xFAFF
+        0x4E00 <= code <= 0x9FFF or  # CJK统一汉字
+        0x3400 <= code <= 0x4DBF or  # CJK扩展A
+        0x20000 <= code <= 0x2A6DF or  # CJK扩展B
+        0x2A700 <= code <= 0x2B73F or  # CJK扩展C
+        0x2B740 <= code <= 0x2B81F or  # CJK扩展D
+        0x2B820 <= code <= 0x2CEAF or  # CJK扩展E
+        0xF900 <= code <= 0xFAFF  # CJK兼容汉字
     )
 
 
 def _approx_token_len(text: str) -> int:
-    # 近似估计：CJK字符按1 token，其他按空白分词
+    # 近似估计：CJK（Chinese、Japanese、Korean）字符按1 token，其他按空白分词
     cjk = sum(1 for ch in text if _is_cjk(ch))
     non_cjk_tokens = len([t for t in text.split() if t])
     return cjk + non_cjk_tokens
@@ -246,6 +260,7 @@ def _split_paragraphs_with_headings(text: str) -> List[Dict]:
         raw = ln
         if raw.strip().startswith("#"):
             # heading line
+            # 处理标题行
             flush_buf(char_pos)
             level = len(raw) - len(raw.lstrip('#'))
             title = raw.lstrip('#').strip()
@@ -257,6 +272,7 @@ def _split_paragraphs_with_headings(text: str) -> List[Dict]:
             char_pos += len(raw) + 1
             continue
         # paragraph accumulation
+        # 段落内容累积
         if raw.strip() == "":
             flush_buf(char_pos)
             buf = []
@@ -283,6 +299,7 @@ def _chunk_paragraphs(paragraphs: List[Dict], chunk_tokens: int, overlap_tokens:
             i += 1
         else:
             # emit current chunk
+            # 生成当前块
             content = "\n\n".join(x["content"] for x in cur)
             start = cur[0]["start"]
             end = cur[-1]["end"]
@@ -294,10 +311,12 @@ def _chunk_paragraphs(paragraphs: List[Dict], chunk_tokens: int, overlap_tokens:
                 "heading_path": heading_path,
             })
             # build overlap by keeping tail tokens
+            # 构建重叠部分
             if overlap_tokens > 0 and cur:
                 kept: List[Dict] = []
                 kept_tokens = 0
                 for x in reversed(cur):
+                    # 针对中英文混合文本的Token估算算法
                     t = _approx_token_len(x["content"]) or 1
                     if kept_tokens + t > overlap_tokens:
                         break
@@ -308,6 +327,7 @@ def _chunk_paragraphs(paragraphs: List[Dict], chunk_tokens: int, overlap_tokens:
             else:
                 cur = []
                 cur_tokens = 0
+    # 处理最后一个块
     if cur:
         content = "\n\n".join(x["content"] for x in cur)
         start = cur[0]["start"]
@@ -324,6 +344,7 @@ def _chunk_paragraphs(paragraphs: List[Dict], chunk_tokens: int, overlap_tokens:
 
 def load_and_chunk_texts(paths: List[str], chunk_size: int = 800, chunk_overlap: int = 100, namespace: Optional[str] = None, source_label: str = "rag") -> List[Dict]:
     """
+    通用的文档加载器，使用 MarkItDown 处理文本块
     Universal document loader and chunker using MarkItDown.
     Converts all supported formats to markdown, then chunks intelligently.
     """
@@ -340,16 +361,29 @@ def load_and_chunk_texts(paths: List[str], chunk_size: int = 800, chunk_overlap:
         ext = (os.path.splitext(path)[1] or '').lower()
         
         # Convert to markdown using MarkItDown
+        # 1.多模态文档载入
         markdown_text = _convert_to_markdown(path)
         if not markdown_text.strip():
             print(f"[WARNING] No content extracted from: {path}")
             continue
-        
+
+        # 语言检测
         lang = _detect_lang(markdown_text)
+        # 16进制
         doc_id = hashlib.md5(f"{path}|{len(markdown_text)}".encode('utf-8')).hexdigest()
         
         # Always use markdown-aware chunking for better structure preservation
+
+        # 2.智能分块策略
+        """
+        标准Markdown文本 → 标题层次解析 → 段落语义分割 → Token计算分块 → 重叠策略优化 → 向量化准备
+            ↓ 				↓ 			↓ 				↓	 		↓ 			↓
+        统一格式 			#/##/###    语义边界 		    大小控制 	    信息连续性 		嵌入向量
+        结构清晰 			层次识别 		完整性保证 		检索优化    	上下文保持 		相似度匹配
+        """
+        # 利用Markdown的标题结构（#、##、###等）进行精确的语义分割
         para = _split_paragraphs_with_headings(markdown_text)
+        # 系统进一步根据Token数量进行智能分块
         token_chunks = _chunk_paragraphs(para, chunk_tokens=max(1, chunk_size), overlap_tokens=max(0, chunk_overlap))
         
         for ch in token_chunks:
@@ -493,15 +527,19 @@ def index_chunks(
         return
     
     # Use unified embedding from embedding module
+    # 使用统一嵌入模型
     embedder = get_text_embedder()
     dimension = get_dimension(384)
     
     # Create default Qdrant store if not provided
+    # 创建默认Qdrant存储
     if store is None:
         store = _create_default_vector_store(dimension)
         print(f"[RAG] Created default Qdrant store with dimension {dimension}")
     
     # Preprocess markdown texts for better embeddings
+    # 预处理
+    # 主要是使Markdown文本以获得更好的嵌入质量
     processed_texts = []
     for c in chunks:
         raw_content = c["content"]
@@ -511,14 +549,18 @@ def index_chunks(
     print(f"[RAG] Embedding start: total_texts={len(processed_texts)} batch_size={batch_size}")
     
     # Batch encoding with unified embedder
+    # 批量编码
     vecs: List[List[float]] = []
     for i in range(0, len(processed_texts), batch_size):
         part = processed_texts[i:i+batch_size]
         try:
             # Use unified embedder directly (handles caching internally)
+            # 知识点：Embedding
+            # 使用统一嵌入器（内部处理缓存），encode是抽象方法，具体要看 Embedding的实现
             part_vecs = embedder.encode(part)
             
             # Normalize to List[List[float]]
+            # 标准化为List[List[float]]格式
             if not isinstance(part_vecs, list):
                 # 单个numpy数组转为列表中的列表
                 if hasattr(part_vecs, "tolist"):
@@ -542,13 +584,16 @@ def index_chunks(
                         part_vecs = [part_vecs.tolist()]
                     else:
                         part_vecs = [list(part_vecs)]
-            
+
+            # 处理向量格式和维度
             for v in part_vecs:
                 try:
                     # 确保向量是float列表
                     if hasattr(v, "tolist"):
                         v = v.tolist()
                     v_norm = [float(x) for x in v]
+
+                    # 维度检查和调整
                     if len(v_norm) != dimension:
                         print(f"[WARNING] 向量维度异常: 期望{dimension}, 实际{len(v_norm)}")
                         # 用零向量填充或截断
@@ -572,7 +617,8 @@ def index_chunks(
                 try:
                     import time
                     time.sleep(2)  # 等待2秒避免频率限制
-                    
+
+                    # encode是抽象方法，具体要看 Embedding的实现
                     small_vecs = embedder.encode(small_part)
                     # Normalize to List[List[float]]
                     if isinstance(small_vecs, list) and small_vecs and not isinstance(small_vecs[0], list):
@@ -698,6 +744,7 @@ def search_vectors(
         where["rag_namespace"] = rag_namespace
     
     try:
+        # 相似度搜索
         return store.search_similar(
             query_vector=qv, 
             limit=top_k, 
@@ -710,6 +757,18 @@ def search_vectors(
 
 
 def _prompt_mqe(query: str, n: int) -> List[str]:
+    """
+    多查询扩展（Multi-Query Expansion）是一种通过生成语义等价的多样化查询来提高检索召回率的技术。
+    MQE的优势在于它能够自动理解用户查询的多种可能含义，特别是对于模糊查询或专业术语查询效果显著。
+
+    这种方法的核心洞察是：同一个问题可以有多种不同的表述方式，而不同的表述可能匹配到不同的相关文档。
+    例如，"如何学习Python"可以扩展为"Python入门教程"、"Python学习方法"、"Python编程指南"等多个查询。
+    通过并行执行这些扩展查询并合并结果，系统能够覆盖更广泛的相关文档，避免因用词差异而遗漏重要信息
+
+    :param query:
+    :param n:
+    :return:
+    """
     try:
         from core.llm import HelloAgentsLLM
         llm = HelloAgentsLLM()
@@ -726,6 +785,16 @@ def _prompt_mqe(query: str, n: int) -> List[str]:
 
 
 def _prompt_hyde(query: str) -> Optional[str]:
+    """
+    假设文档嵌入（Hypothetical Document Embeddings，HyDE）是一种创新的检索技术，它的核心思想是"用答案找答案"。
+    传统的检索方法是用问题去匹配文档，但问题和答案在语义空间中的分布往往存在差异——问题通常是疑问句，而文档内容是陈述句。
+    HyDE通过让LLM先生成一个假设性的答案段落，然后用这个答案段落去检索真实文档，从而缩小了查询和文档之间的语义鸿沟。
+
+    这种方法的优势在于，假设答案与真实答案在语义空间中更加接近，因此能够更准确地匹配到相关文档。
+
+    :param query:
+    :return:
+    """
     try:
         from core.llm import HelloAgentsLLM
         llm = HelloAgentsLLM()
@@ -752,25 +821,37 @@ def search_vectors_expanded(
 ) -> List[Dict]:
     """
     Search with query expansion using unified embedding and Qdrant.
+    扩展检索的核心机制是"扩展-检索-合并"三步流程。
+    首先，系统根据原始查询生成多个扩展查询（包括MQE生成的多样化查询和HyDE生成的假设文档）；
+    然后，对每个扩展查询并行执行向量检索，获取候选文档池；
+    最后，通过去重和分数排序合并所有结果，返回最相关的top-k文档
+
+    这种设计的巧妙之处在于，它通过 candidate_pool_multiplier
+    参数（默认为4）扩大候选池，确保有足够的候选文档进行筛选，同时通过智能去重避免返回重复内容
     """
     if not query:
         return []
     
     # Create default store if not provided
+    # 创建默认存储
     if store is None:
         store = _create_default_vector_store()
     
     # expansions
+    # 查询扩展
     expansions: List[str] = [query]
     
     if enable_mqe and mqe_expansions > 0:
+        # 多查询扩展， mqe_expansions 代表最多扩展几个等价语义
         expansions.extend(_prompt_mqe(query, mqe_expansions))
     if enable_hyde:
+        # 假设性文档，用答案找答案
         hyde_text = _prompt_hyde(query)
         if hyde_text:
             expansions.append(hyde_text)
 
     # unique and trim
+    # 去重
     uniq: List[str] = []
     for e in expansions:
         if e and e not in uniq:
@@ -778,10 +859,13 @@ def search_vectors_expanded(
     expansions = uniq[: max(1, len(uniq))]
 
     # distribute pool per expansion
+    # 分配候选池
+    # TODO: 2026-02-01 没理解含义
     pool = max(top_k * candidate_pool_multiplier, 20)
     per = max(1, pool // max(1, len(expansions)))
 
     # Build filter for RAG data
+    # 构建RAG数据过滤器
     where = {"memory_type": "rag_chunk"}
     if only_rag_data:
         where["is_rag_data"] = True
@@ -790,9 +874,12 @@ def search_vectors_expanded(
         where["rag_namespace"] = rag_namespace
 
     # collect hits across expansions
+    # 收集所有扩展查询的结果
     agg: Dict[str, Dict] = {}
     for q in expansions:
+        # 将查询条件转换成向量
         qv = embed_query(q)
+        # 相似度查询，判断命中
         hits = store.search_similar(query_vector=qv, limit=per, score_threshold=score_threshold, where=where)
         for h in hits:
             mid = h.get("metadata", {}).get("memory_id", h.get("id"))
@@ -800,6 +887,7 @@ def search_vectors_expanded(
             if mid not in agg or s > float(agg[mid].get("score", 0.0)):
                 agg[mid] = h
     # return top by score
+    # 按分数排序返回
     merged = list(agg.values())
     merged.sort(key=lambda x: float(x.get("score", 0.0)), reverse=True)
     return merged[:top_k]
@@ -1151,6 +1239,7 @@ def create_rag_pipeline(
     
     def add_documents(file_paths: List[str], chunk_size: int = 800, chunk_overlap: int = 100):
         """Add documents to RAG pipeline"""
+        # 1.多模态文档载入 + 2.智能分块
         chunks = load_and_chunk_texts(
             paths=file_paths,
             chunk_size=chunk_size,
@@ -1158,6 +1247,8 @@ def create_rag_pipeline(
             namespace=rag_namespace,
             source_label="rag"
         )
+        # 3.统一嵌入与向量存储
+        # 嵌入模型是RAG系统的核心，它负责将文本转换为高维向量，使得计算机能够理解和比较文本的语义相似性
         index_chunks(
             store=store,
             chunks=chunks,
@@ -1182,7 +1273,11 @@ def create_rag_pipeline(
         enable_hyde: bool = False,
         score_threshold: Optional[float] = None
     ):
-        """Advanced search with query expansion"""
+        """Advanced search with query expansion
+        在实际应用中，用户的查询表述与文档中的实际内容可能存在用词差异，导致相关文档无法被检索到。
+        为了解决这个问题，HelloAgents实现了三种互补的高级检索策略：多查询扩展（MQE）、假设文档嵌入（HyDE）和统一的扩展检索框架
+
+        """
         return search_vectors_expanded(
             store=store,
             query=query,
