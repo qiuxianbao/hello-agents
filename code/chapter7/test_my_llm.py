@@ -20,6 +20,12 @@ class TestMyLLM:
         print(type(kwargs))
         print(kwargs)
 
+        kwargs.update({"d": 4})
+        print(kwargs)
+
+        kwargs.update({"d": 5})
+        print(kwargs)
+
     def test_dict_kwargs(self):
         self.kwargs_dict(a=1, b=2, c=3)
 

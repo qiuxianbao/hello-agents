@@ -1,6 +1,11 @@
 # 增加HF_ENDPOINT，避免Connection aborted. 
 import os
+# 本站域名 hf-mirror.com，用于镜像 huggingface.co 域名
 os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+
+"""
+pip install transformers torch
+"""
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
