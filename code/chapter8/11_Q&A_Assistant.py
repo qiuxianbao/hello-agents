@@ -3,6 +3,13 @@
 """
 智能文档问答助手 - 基于HelloAgents的智能文档问答系统
 
+整个系统工作流：
+步骤 1 PDF文档处理
+步骤 2 RAG检索问答
+步骤 3 记忆系统
+步骤 4 集成助手
+步骤 5 学习报告
+
 这是一个完整的PDF学习助手应用，支持：
 - 加载PDF文档并构建知识库
 - 智能问答（基于RAG）
@@ -30,13 +37,17 @@ class PDFLearningAssistant:
             user_id: 用户ID，用于隔离不同用户的数据
         """
         self.user_id = user_id
+        # session_id 用于追踪单次学习会话的完整过程，便于后续的学习历程回顾和分析
         self.session_id = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
         # 初始化工具
+        # 通过 user_id 参数实现用户级别的记忆隔离。不同用户的学习记忆是完全独立的，每个用户都有自己的工作记忆、情景记忆、语义记忆和感知记忆空间
         self.memory_tool = MemoryTool(user_id=user_id)
+        # 通过 rag_namespace 参数实现知识库的命名空间隔离。使用 f"pdf_{user_id}" 作为命名空间，每个用户都有自己独立的PDF知识库。
         self.rag_tool = RAGTool(rag_namespace=f"pdf_{user_id}")
 
         # 学习统计
+        # 关键的学习指标
         self.stats = {
             "session_start": datetime.now(),
             "documents_loaded": 0,
@@ -49,6 +60,7 @@ class PDFLearningAssistant:
 
     def load_document(self, pdf_path: str) -> Dict[str, Any]:
         """加载PDF文档到知识库
+        episodic
 
         Args:
             pdf_path: PDF文件路径
@@ -63,6 +75,7 @@ class PDFLearningAssistant:
 
         try:
             # 使用RAG工具处理PDF
+            # 【RAGTool】处理PDF: MarkItDown转换 → 智能分块 → 向量化
             result = self.rag_tool.run({
                 "action":"add_document",
                 "file_path":pdf_path,
@@ -77,6 +90,15 @@ class PDFLearningAssistant:
             self.stats["documents_loaded"] += 1
 
             # 记录到学习记忆
+            """
+            为什么用情景记忆？ 
+            因为这是一个具体的、有时间戳的事件，适合用情景记忆记录。 
+            session_id 参数将这个事件关联到当前学习会话，便于后续回顾学习历程
+            
+            这个记忆记录为后续的个性化服务奠定了基础：
+            用户询问"我之前加载过哪些文档？" → 从情景记忆中检索
+            系统可以追踪用户的学习历程和文档使用情况
+            """
             self.memory_tool.run({
                 "action":"add",
                 "content":f"加载了文档《{self.current_document}》",
@@ -99,6 +121,8 @@ class PDFLearningAssistant:
 
     def ask(self, question: str, use_advanced_search: bool = True) -> str:
         """向文档提问
+        working
+        episodic
 
         Args:
             question: 用户问题
@@ -145,6 +169,7 @@ class PDFLearningAssistant:
 
     def add_note(self, content: str, concept: Optional[str] = None):
         """添加学习笔记
+        semantic
 
         Args:
             content: 笔记内容
@@ -229,6 +254,7 @@ class PDFLearningAssistant:
 
         # 保存到文件
         if save_to_file:
+            # 保存为JOSN文件
             report_file = f"learning_report_{self.session_id}.json"
             try:
                 with open(report_file, 'w', encoding='utf-8') as f:
@@ -244,7 +270,9 @@ class PDFLearningAssistant:
 
 
 def create_gradio_ui():
-    """创建Gradio Web UI"""
+    """创建Gradio Web UI
+    是一个开源的 Python 库，用于快速构建机器学习模型的交互式演示或 Web 应用程序
+    """
     # 全局助手实例
     assistant_state = {"assistant": None}
 
@@ -252,6 +280,7 @@ def create_gradio_ui():
         """初始化助手"""
         if not user_id:
             user_id = "web_user"
+        # 初始化助手
         assistant_state["assistant"] = PDFLearningAssistant(user_id=user_id)
         return f"✅ 助手已初始化 (用户: {user_id})"
 
@@ -335,6 +364,17 @@ def create_gradio_ui():
         return result
 
     # 创建Gradio界面
+
+    """
+    知识点：try...catch...
+    with 是 Python 中的一个上下文管理器关键字，用于简化资源管理和确保代码的正确执行流程。
+    
+    主要作用：
+    1.自动资源管理：确保在代码块执行前后进行相应的清理工作
+    2.异常安全：即使代码块中发生异常，也能保证资源被正确释放
+    3.简化代码：避免手动编写 try-finally 结构
+    
+    """
     with gr.Blocks(title="智能文档问答助手", theme=gr.themes.Soft()) as demo:
         gr.Markdown("""
         # 📚 智能文档问答助手
