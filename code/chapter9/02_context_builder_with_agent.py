@@ -1,5 +1,7 @@
 """
 ContextBuilder 与 Agent 集成示例
+通过这种方式，ContextBuilder 成为了 Agent 的"上下文管理大脑"，自动处理信息的收集、筛选和组织，让 Agent 始
+终能够在最优的上下文下进行推理和生成
 
 展示如何将 ContextBuilder 集成到 Agent 中，实现：
 1. 上下文感知的 Agent

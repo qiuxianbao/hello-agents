@@ -1,4 +1,5 @@
 """ContextBuilder - GSSC流水线实现
+提供统一的上下文管理接口
 
 实现 Gather-Select-Structure-Compress 上下文构建流程：
 1. Gather: 从多源收集候选信息（历史、记忆、RAG、工具结果）
@@ -23,35 +24,58 @@ else:
     MemoryTool = TypingAny  # type: ignore[assignment,misc]
     RAGTool = TypingAny  # type: ignore[assignment,misc]
 
+"""
+知识点：装饰器
+类似Java中的lombok注解会自动一些方法
+
+比如：
+init() - 构造函数
+repr() - 字符串表示
+__eq__() - 相等性比较
+__lt__()、__le__()、__gt__()、__ge__() - 比较运算符（需设置 order=True
+
+扩展：
+@dataclass 的常用参数
+init=True/False - 是否生成 init 方法
+repr=True/False - 是否生成 repr 方法
+eq=True/False - 是否生成 __eq__ 方法
+order=False/True - 是否生成排序方法（lt, le, gt, ge）
+frozen=False/True - 是否使实例不可变（类似元组）
+slots=False/True - 是否使用 __slots__ 以节省内存
+"""
 
 @dataclass
 class ContextPacket:
-    """上下文信息包"""
+    """上下文信息包
+    """
     content: str
-    timestamp: datetime = field(default_factory=datetime.now)
+    timestamp: datetime = field(default_factory=datetime.now)   # 用于计算新近性
     metadata: Dict[str, Any] = field(default_factory=dict)
     token_count: int = 0
-    relevance_score: float = 0.0  # 0.0-1.0
+    relevance_score: float = 0.0  # 0.0-1.0，用于计算相关性
     
     def __post_init__(self):
         """自动计算token数"""
         if self.token_count == 0:
             self.token_count = count_tokens(self.content)
 
-# 知识点：装饰器
 @dataclass
 class ContextConfig:
-    """上下文构建配置"""
+    """上下文构建【配置】"""
     max_tokens: int = 8000  # 总预算
-    reserve_ratio: float = 0.15  # 生成余量（10-20%）
-    min_relevance: float = 0.3  # 最小相关性阈值（仅对扩展上下文生效）
+    reserve_ratio: float = 0.15  # 生成余量（10-20%），保留的。它确保系统指令等关键信息始终有足够的空间，不会被其他信息挤占。
+    min_relevance: float = 0.3  # 最小相关性阈值（仅对扩展上下文生效），为了排序使用
     max_history_turns: int = 10  # 最大保留对话轮数
-    enable_mmr: bool = True  # 启用最大边际相关性（多样性）
+    enable_mmr: bool = True  # 启用最大边际相关性（多样性），Maximal Marginal Relevance，最大边际相关性
     mmr_lambda: float = 0.7  # MMR平衡参数（0=纯多样性, 1=纯相关性）
     system_prompt_template: str = ""  # 系统提示模板
     enable_compression: bool = True  # 启用压缩
     include_output_format: bool = True  # 是否附加固定输出格式约束
-    # 按需探索模式：不主动查询 memory/rag，由模型通过工具按需获取
+    """
+    按需探索模式：不主动查询 memory/rag，由模型通过工具按需获取
+    当 lazy_fetch=True 时，只收集保底上下文（系统指令+对话历史+额外包）。
+    当 lazy_fetch=False 时，主动查询 memory/rag（传统模式）。
+    """
     lazy_fetch: bool = True
     
     def get_available_tokens(self) -> int:
@@ -92,7 +116,7 @@ class ContextBuilder:
         memory_tool: Optional[MemoryTool] = None,
         rag_tool: Optional[RAGTool] = None,
         config: Optional[ContextConfig] = None,
-        llm: Optional[HelloAgentsLLM] = None,
+        llm: Optional[HelloAgentsLLM] = None,   # 压缩时使用
     ):
         self.memory_tool = memory_tool
         self.rag_tool = rag_tool
@@ -179,7 +203,7 @@ class ContextBuilder:
         """为保底上下文构建结构化模板"""
         sections = []
         
-        # [Role & Policies]
+        # [Role & Policies]-明确 Agent 的角色定位和行为准则
         instructions = [p for p in packets if p.metadata.get("type") == "instructions"]
         if instructions:
             sections.append("[Role & Policies]\n" + "\n".join([p.content for p in instructions]))
@@ -189,7 +213,7 @@ class ContextBuilder:
         if history:
             sections.append("[Context]\n以下是最近的对话记录：\n" + "\n".join([p.content for p in history]))
         
-        # [Evidence] - 工具摘要
+        # [Evidence] - 工具摘要，从外部知识库检索的证据信息
         tool_summary = [p for p in packets if p.metadata.get("type") == "tool_summary"]
         if tool_summary:
             sections.append("[Evidence]\n" + "\n".join([p.content for p in tool_summary]))
@@ -199,7 +223,7 @@ class ContextBuilder:
         if pending:
             sections.append("[State]\n" + "\n".join([p.content for p in pending]))
         
-        # [Task]
+        # [Task] - 当前需要完成的具体任务
         sections.append(f"[Task]\n{user_query}")
         
         return "\n\n".join(sections)
@@ -211,7 +235,8 @@ class ContextBuilder:
         system_instructions: Optional[str] = None,
         additional_packets: Optional[List[ContextPacket]] = None
     ) -> str:
-        """构建完整上下文
+        """构建完整上下文，入口
+        核心是 GSSC(Gather-Select-Structure-Compress)流水线，它将上下文构建过程分解为四个清晰的阶段
         
         Args:
             user_query: 用户查询
@@ -244,7 +269,7 @@ class ContextBuilder:
         final_context = self._compress(structured_context)
         
         return final_context
-    
+
     def _gather(
         self,
         user_query: str,
@@ -252,10 +277,17 @@ class ContextBuilder:
         system_instructions: Optional[str],
         additional_packets: List[ContextPacket]
     ) -> List[ContextPacket]:
-        """Gather: 收集候选信息
-        
-        当 lazy_fetch=True 时，只收集保底上下文（系统指令+对话历史+额外包）。
-        当 lazy_fetch=False 时，主动查询 memory/rag（传统模式）。
+        """
+        收集候选信息
+        1.容错机制：每个外部数据源的调用都被 try-except 包裹，确保单个源的失败不会影响整体流程
+        2.优先级处理：系统指令被标记为高优先级，确保始终被保留
+        3.历史限制：对话历史只保留最近的几条，避免上下文窗口被历史信息占据
+
+        :param system_instructions: 系统指令
+        :param conversation_history: 对话历史
+        :param additional_packets: 额外包
+        :param user_query: 用户查询（Memory、RAG）
+        :return:
         """
         packets = []
         
@@ -287,7 +319,7 @@ class ContextBuilder:
                     state_results = self.memory_tool.execute(
                         "search",
                         query="(任务状态 OR 子目标 OR 结论 OR 阻塞)",
-                        min_importance=0.7,
+                        min_importance=0.7, # 筛选出重要程度大于0.7
                         limit=5
                     )
                     if state_results and "未找到" not in state_results:
@@ -336,21 +368,31 @@ class ContextBuilder:
         packets: List[ContextPacket],
         user_query: str
     ) -> List[ContextPacket]:
-        """Select: 基于分数与预算的筛选"""
+        """Select: 基于分数与预算的筛选
+        1.评分机制：采用【相关性】和【新近性】的加权组合，权重可配置
+        2.贪心算法：按【分数从高到低填充】，确保在有限预算内选择最有价值的信息
+        3.系统指令和历史优先级最高，固定纳入
+        4.过滤机制：通过 min_relevance 参数过滤低质量信息
+        """
         # 1) 计算相关性（关键词重叠）
-        query_tokens = set(user_query.lower().split())
+        query_tokens = set(user_query.lower().split())  #默认按照空白字符进行拆分，包括空格、制表符、换行符等
         for packet in packets:
             content_tokens = set(packet.content.lower().split())
             if len(query_tokens) > 0:
+                # 知识点：计算2个集合的交集
                 overlap = len(query_tokens & content_tokens)
+                # 类似 jaccard相似度。用途：用来衡量两个集合的相似程度，取值在 0 到 1 之间，越接近 1 表示越相似。
+                # Jaccard Similarity = |A ∩ B| / |A ∪ B|
                 packet.relevance_score = overlap / len(query_tokens)
             else:
                 packet.relevance_score = 0.0
         
-        # 2) 计算新近性（指数衰减）
+        # 2) 计算新近性（指时间上的接近程度，即越接近当前时间的信息被认为越重要、越相关）
+        # 指数衰减
         def recency_score(ts: datetime) -> float:
             delta = max((datetime.now() - ts).total_seconds(), 0)
             tau = 3600  # 1小时时间尺度，可暴露到配置
+            # 知识点：e^x-》(e/1)^x，指数递减
             return math.exp(-delta / tau)
         
         # 3) 计算复合分：0.7*相关性 + 0.3*新近性
@@ -363,13 +405,16 @@ class ContextBuilder:
         # 4) 系统指令和对话历史单独拿出，固定纳入（这两者是基础上下文，不应被过滤）
         must_keep_types = {"instructions", "history"}
         must_keep_packets = [p for (_, p) in scored_packets if p.metadata.get("type") in must_keep_types]
+        # 剩余的按照score逆排序
         remaining = [p for (s, p) in sorted(scored_packets, key=lambda x: x[0], reverse=True)
                      if p.metadata.get("type") not in must_keep_types]
         
         # 5) 依据 min_relevance 过滤（仅对扩展上下文：memory、RAG、notes 等）
+        # 过滤低于最小相关性阈值的信息
         filtered = [p for p in remaining if p.relevance_score >= self.config.min_relevance]
         
         # 6) 按预算填充
+        # 贪心算法：按分数从高到低填充，确保在有限预算内选择最有价值的信息
         available_tokens = self.config.get_available_tokens()
         selected: List[ContextPacket] = []
         used_tokens = 0
@@ -395,10 +440,16 @@ class ContextBuilder:
         user_query: str,
         system_instructions: Optional[str]
     ) -> str:
-        """Structure: 组织成结构化上下文模板"""
+        """Structure: 组织成结构化上下文模板
+        结构化阶段将散乱的信息包组织成清晰的分区，这种设计有几个优势：
+        1.可读性：清晰的分区让人类和模型都更容易理解上下文结构
+        2.可调试性：问题定位更容易，可以快速识别哪个区域的信息有问题
+        3.可扩展性：添加新的信息源只需要创建新的分区
+        """
         sections = []
         
         # [Role & Policies] - 系统指令
+        # 明确 Agent 的角色定位和行为准则
         p0_packets = [p for p in selected_packets if p.metadata.get("type") == "instructions"]
         if p0_packets:
             role_section = "[Role & Policies]\n"
@@ -406,9 +457,11 @@ class ContextBuilder:
             sections.append(role_section)
         
         # [Task] - 当前任务
+        # 当前需要完成的具体任务，即用户查询
         sections.append(f"[Task]\n用户问题：{user_query}")
         
         # [State] - 任务状态
+        # Agent 的当前状态和上下文信息
         p1_packets = [p for p in selected_packets if p.metadata.get("type") == "task_state"]
         if p1_packets:
             state_section = "[State]\n关键进展与未决问题：\n"
@@ -416,6 +469,7 @@ class ContextBuilder:
             sections.append(state_section)
         
         # [Evidence] - 事实证据
+        # 从外部知识库检索的证据信息
         p2_packets = [
             p for p in selected_packets
             if p.metadata.get("type") in {"related_memory", "knowledge_base", "retrieval", "tool_result"}
@@ -434,6 +488,7 @@ class ContextBuilder:
             sections.append(context_section)
         
         # [Output] - 输出约束（可选）
+        # 期望的输出格式和要求
         if self.config.include_output_format:
             output_section = """[Output]
 请按以下格式回答：
@@ -446,7 +501,11 @@ class ContextBuilder:
         return "\n\n".join(sections)
     
     def _compress(self, context: str) -> str:
-        """Compress: 压缩与规范化"""
+        """Compress: 压缩与规范化
+        对超限上下文进行压缩处理
+        1.LLM压缩/LLM做高保真摘要
+        2.兜底逻辑，直接截断
+        """
         if not self.config.enable_compression:
             return context
         
@@ -502,6 +561,8 @@ class ContextBuilder:
 def count_tokens(text: str) -> int:
     """计算文本token数（使用tiktoken）"""
     try:
+        # tiktoken 为 OpenAI 模型设计的高性能 BPE（Byte Pair Encoding）分词器
+        # 基于字节对编码
         encoding = tiktoken.get_encoding("cl100k_base")
         return len(encoding.encode(text))
     except Exception:
