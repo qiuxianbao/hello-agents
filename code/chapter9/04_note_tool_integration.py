@@ -1,6 +1,13 @@
 """
 NoteTool 与 ContextBuilder 集成示例
 
+场景设定
+假设我们正在构建一个长期项目助手，它需要：
+1. 记录项目的阶段性进展
+2. 追踪待解决的问题
+3. 在每次对话时，自动回顾相关笔记
+4. 基于历史笔记提供连贯的建议
+
 展示如何将 NoteTool 与 ContextBuilder 集成，实现：
 1. 长期项目追踪
 2. 笔记检索与上下文注入
@@ -43,7 +50,12 @@ class ProjectAssistant(SimpleAgent):
         self.conversation_history = []
 
     def run(self, user_input: str, note_as_action: bool = False) -> str:
-        """运行助手,自动集成笔记"""
+        """
+        运行助手,自动集成笔记
+        :param user_input:
+        :param note_as_action:  是否将交互保存为笔记
+        :return:
+        """
 
         # 1. 从 NoteTool 检索相关笔记
         relevant_notes = self._retrieve_relevant_notes(user_input)
@@ -56,7 +68,7 @@ class ProjectAssistant(SimpleAgent):
             user_query=user_input,
             conversation_history=self.conversation_history,
             system_instructions=self._build_system_instructions(),
-            additional_packets=note_packets
+            additional_packets=note_packets # 额外的上下文包
         )
 
         # 4. 调用 LLM (以 messages 数组形式传入)
@@ -76,7 +88,9 @@ class ProjectAssistant(SimpleAgent):
         return response
 
     def _retrieve_relevant_notes(self, query: str, limit: int = 3) -> List[Dict]:
-        """检索相关笔记"""
+        """检索相关笔记
+        检索优先级
+        """
         try:
             # 优先检索 blocker 和 action 类型的笔记
             blockers_raw = self.note_tool.run({

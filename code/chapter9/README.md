@@ -5,7 +5,8 @@
 
 然而，随着我们开始工程化地构建更强的智能体，它们在更长的时间范围内、跨多次推理轮次地工作，我们就需要能管理整个上下文状态的策略——其中包括系统指令、工具、MCP（Model Context Protocol）、外部数据、消息历史等。
 
-**简单地说，就是当 系统提示 + 对话历史 + 额外包 + Memory/Rag 集成起来有很多信息的时候，如何去取Topk** 
+**简单地说，就是当 系统提示 + 对话历史 + 额外包 + Memory/Rag 集成起来有很多信息的时候，如何去取Topk**
+**对应到系统提示词中，就是system的content {"role": "system", "content": optimized_context}**
 
 ## 背景
 上下文必须被视作一种有限资源，且具有边际收益递减。
@@ -22,7 +23,6 @@
 ## 优秀的上下文工程目标是
 用尽可能少、但高信号密度的 tokens，最大化获得期望结果的概率。
 
-
 ### 有效上下文
 * 系统提示（System Prompt）
 * 工具（Tool）
@@ -32,7 +32,7 @@
 * 上下文检索，渐进式披露
 
 ### 长时程任务的上下文
-* 压缩整合（Compaction）
+* 压缩整合（Compaction），GSSC（Gather-Select-Struct-Compress）
 * 结构化笔记（Structured note-taking）
 * 子代理架构（Sub-agent architectures）
 

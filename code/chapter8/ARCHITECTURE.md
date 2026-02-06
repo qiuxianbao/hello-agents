@@ -74,7 +74,7 @@ HelloAgents RAG系统
 ├── 向量存储层 (Vector Storage Layer)
 │ └── QdrantVectorStore - 向量数据库（命名空间隔离）
 └── 智能问答层 (Intelligent Q&A Layer)
-├── 多策略检索 - 向量检索 + MQE + HyDE
+├── 多策略检索 - 向量检索 + MQE(多查询扩展) + HyDE(假设性文档嵌入，用答案找答案)
 ├── 上下文构建 - 智能片段合并与截断
 └── LLM增强生成 - 基于上下文的准确问答
 ```

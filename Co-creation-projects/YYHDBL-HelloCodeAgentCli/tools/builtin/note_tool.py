@@ -1,6 +1,41 @@
 """NoteTool - 结构化笔记工具
+支持智能体进行持久化记忆管理
 
+一、为什么需要 NoteTool?
+我们介绍了 MemoryTool，它提供了强大的记忆管理能力。然而，MemoryTool 主要关注对话式记忆——短期工作记忆、情景记忆和语义记忆。
+对于需要长期追踪、结构化管理的项目式任务，我们需要一种更轻量、更人类友好的记录方式。
+
+NoteTool 填补了这个gap，它提供了：
+1.结构化记录：使用 Markdown + YAML 格式，既适合机器解析，也方便人类阅读和编辑
+2.版本友好：纯文本格式，天然支持 Git 等版本控制系统
+3.低开销：无需复杂的数据库操作，适合轻量级的状态追踪
+4.灵活分类：通过 type 和 tags 灵活组织笔记，支持多维度检索
+
+示例：
+# 记录任务状态
+notes.run({
+    "action": "create",
+    "title": "重构项目 - 第一阶段",
+    "content": "已完成数据模型层的重构,测试覆盖率达到85%。下一步将重构业务逻辑层。",
+    "note_type": "task_state",
+    "tags": ["refactoring", "phase1"]
+})
+# 记录阻塞点
+notes.run({
+    "action": "create",
+    "title": "依赖冲突问题",
+    "content": "发现某些第三方库版本不兼容,需要解决。影响范围:业务逻辑层的3个模块。",
+    "note_type": "blocker",
+    "tags": ["dependency", "urgent"]
+})
+
+二、提供哪些能力，支持什么场景
 为Agent提供结构化笔记能力，支持：
+笔记-操作类型[action]：create(创建), read(读取), update(更新), delete(删除), list(列表), search(搜索), summary(摘要)
+
+笔记-类型[note_type]：task_state(当前阶段的任务状态和进度), conclusion(每个阶段结束后的关键结论), blocker(遇到的问题和阻塞点), action(下一步的行动计划),
+reference(参考文献), general(通用)
+
 - 创建/读取/更新/删除笔记
 - 按类型组织（任务状态、结论、阻塞项、行动计划等）
 - 持久化存储（Markdown格式，带YAML前置元数据）
@@ -9,11 +44,26 @@
 
 使用场景：
 - 长时程任务的状态跟踪
+想象一个智能体正在协助完成一个大型代码库的重构任务，这可能需要几天甚至几周。NoteTool 可以记录：
+
 - 关键结论与依赖记录
+比如：研究任务管理
+一个智能研究助手在进行文献综述时，可以使用 NoteTool 记录：
+每篇论文的核心观点( conclusion )
+待深入调研的主题( action )
+重要的参考文献( reference )
+
 - 待办事项与行动计划
 - 项目知识沉淀
 
-笔记格式示例：
+三、笔记文件即索引示例
+1.笔记.md文件示例：
+
+这种格式的优势：
+YAML 元数据：机器可解析，支持精确的字段提取和检索
+Markdown 正文：人类可读，支持丰富的格式化(标题、列表、代码块等)
+文件名即 ID：简化管理，每个笔记的文件名就是其唯一标识
+
 ```markdown
 ---
 id: note_20250118_120000_0
@@ -32,6 +82,41 @@ updated_at: 2025-01-18T12:00:00
 - [x] 需求收集
 - [ ] 方案设计
 ```
+
+2.转换后的note示例
+note = {
+    "id": "note_20250405_120000_0",
+    "title": "项目进展汇报",
+    "type": "task_state",
+    "tags": ["milestone", "phase2"],
+    "created_at": "2025-04-05T12:00:00",
+    "updated_at": "2025-04-05T12:00:00",
+    "content": "本周完成了用户登录模块的开发，下一步准备进行权限管理模块的设计。"
+}
+
+3.索引文件示例：
+NoteTool 维护一个 notes_index.json 文件，用于快速检索和管理笔记
+{
+    "note_20250119_153000_0": {
+        "id": "note_20250119_153000_0",
+        "title": "项目进展 - 第一阶段",
+        "type": "task_state",
+        "tags": ["refactoring", "phase1", "backend"],
+        "created_at": "2025-01-19T15:30:00",
+        "updated_at": "2025-01-19T15:30:00",
+        "file_path": "./notes/note_20250119_153000_0.md"
+    }
+}
+
+
+五、最佳实践
+1.定期清理和归档：
+对于已解决的 blocker，更新为 conclusion
+对于过时的 action，及时删除或更新
+使用 tags 进行版本管理，如 ["v1.0", "completed"]
+
+根据笔记类型设置不同的相关性分数(blocker > action > conclusion)
+
 """
 
 from typing import Dict, Any, List, Optional
@@ -83,7 +168,8 @@ class NoteTool(Tool):
             name="note",
             description="笔记工具 - 创建、读取、更新、删除结构化笔记，支持任务状态、结论、阻塞项等类型"
         )
-        
+
+        # 知识点：文件操作
         self.workspace = Path(workspace)
         self.auto_backup = auto_backup
         self.max_notes = max_notes
@@ -113,6 +199,7 @@ class NoteTool(Tool):
     def _save_index(self):
         """保存笔记索引"""
         with open(self.index_file, 'w', encoding='utf-8') as f:
+            # 知识点：json操作，每层缩进2个空格
             json.dump(self.notes_index, f, ensure_ascii=False, indent=2)
     
     def _generate_note_id(self) -> str:
@@ -126,7 +213,34 @@ class NoteTool(Tool):
         return self.workspace / f"{note_id}.md"
     
     def _note_to_markdown(self, note: Dict[str, Any]) -> str:
-        """将笔记对象转换为Markdown格式"""
+        """将笔记对象转换为Markdown格式
+
+        示例：note对象
+        note = {
+            "id": "note_20250405_120000_0",
+            "title": "项目进展汇报",
+            "type": "task_state",
+            "tags": ["milestone", "phase2"],
+            "created_at": "2025-04-05T12:00:00",
+            "updated_at": "2025-04-05T12:00:00",
+            "content": "本周完成了用户登录模块的开发，下一步准备进行权限管理模块的设计。"
+        }
+
+        转换后的md文本
+        ---
+        id: note_20250118_120000_0
+        title: 项目进展
+        type: task_state
+        tags: [milestone, phase1]
+        created_at: 2025-01-18T12:00:00
+        updated_at: 2025-01-18T12:00:00
+        ---
+
+        # 项目进展
+
+        已完成需求分析，下一步：设计方案
+
+        """
         # YAML前置元数据
         frontmatter = "---\n"
         frontmatter += f"id: {note['id']}\n"
@@ -140,6 +254,7 @@ class NoteTool(Tool):
         frontmatter += "---\n\n"
         
         # Markdown内容
+        # 一级标题
         content = f"# {note['title']}\n\n"
         content += note['content']
         
@@ -148,11 +263,39 @@ class NoteTool(Tool):
     def _markdown_to_note(self, markdown_text: str) -> Dict[str, Any]:
         """将Markdown文本解析为笔记对象"""
         # 提取YAML前置元数据
+
+        """
+        知识点：正则
+        1.^
+        匹配字符串的开头，确保 YAML 前置元数据位于文本最开始的位置。
+        2.---
+        匹配三个短横线 ---，这是 YAML 前置元数据的标准起始标记。
+        3.\s*
+        匹配零个或多个空白字符（包括空格、制表符等），用于处理可能存在的空格。
+        4.\n
+        匹配换行符，表示 --- 后必须换行。
+        5.(.*?)
+        这是核心捕获组：
+            . 匹配任意字符（除换行符外）。
+            *? 是非贪婪匹配，尽可能少地匹配字符，直到遇到下一个模式。
+            整体作用是捕获两个 --- 之间的所有内容（即 YAML 元数据部分）。
+        说明：group(1)就是第1个()被捕获的数据，group(0)是所有内容
+        6.\n---
+        匹配换行符后紧跟的三个短横线 ---，这是 YAML 前置元数据的结束标记。
+        
+        7.\s*
+        匹配结束标记后的零个或多个空白字符。
+        8.\n
+        匹配结束标记后的换行符。
+        9.re.DOTALL 标志
+        使 . 能够匹配换行符，确保跨行内容也能被捕获。
+        """
         frontmatter_match = re.match(r'^---\s*\n(.*?)\n---\s*\n', markdown_text, re.DOTALL)
         
         if not frontmatter_match:
             raise ValueError("无效的笔记格式：缺少YAML前置元数据")
-        
+
+        # 被捕获的第1个()的内容
         frontmatter_text = frontmatter_match.group(1)
         content_start = frontmatter_match.end()
         
@@ -174,10 +317,12 @@ class NoteTool(Tool):
                     note[key] = value
         
         # 提取内容（去掉标题行）
+        # 知识点：字符串可以直接当成字符数组处理
         markdown_content = markdown_text[content_start:].strip()
         # 移除第一行的 # 标题
         lines = markdown_content.split('\n')
         if lines and lines[0].startswith('# '):
+            # 把数组索引1之后的用\n连接成一个字符串
             markdown_content = '\n'.join(lines[1:]).strip()
         
         note['content'] = markdown_content
@@ -276,7 +421,10 @@ class NoteTool(Tool):
         ]
     
     def _create_note(self, params: Dict[str, Any]) -> str:
-        """创建笔记"""
+        """创建笔记
+        1.将内容转换成md（包含YAML前置元数据）
+        2.更新索引
+        """
         title = params.get("title")
         content = params.get("content")
         note_type = params.get("note_type", "general")
@@ -401,6 +549,7 @@ class NoteTool(Tool):
             return f"❌ 笔记不存在: {note_id}"
         
         # 删除文件
+        # 知识点：文件操作，删除文件
         note_path.unlink()
         
         # 更新索引
@@ -446,7 +595,11 @@ class NoteTool(Tool):
         if not query:
             return "❌ 搜索需要提供 query"
         
-        # 搜索匹配的笔记
+        """
+        搜索匹配的笔记
+        循环索引，拿到笔记文件内容，解析成note
+        匹配逻辑：title/content/tags
+        """
         matched_notes = []
         for idx_note in self.notes_index["notes"]:
             note_path = self._get_note_path(idx_note["id"])
@@ -479,7 +632,9 @@ class NoteTool(Tool):
         return result
     
     def _get_summary(self) -> str:
-        """获取笔记摘要"""
+        """获取笔记摘要
+        有几个笔记，每种笔记分别多少条
+        """
         total = len(self.notes_index["notes"])
         
         # 按类型统计

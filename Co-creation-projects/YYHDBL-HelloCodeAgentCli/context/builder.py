@@ -113,8 +113,8 @@ class ContextBuilder:
     
     def __init__(
         self,
-        memory_tool: Optional[MemoryTool] = None,
-        rag_tool: Optional[RAGTool] = None,
+        memory_tool: Optional[MemoryTool] = None,   #初始化工具
+        rag_tool: Optional[RAGTool] = None, # 初始化工具
         config: Optional[ContextConfig] = None,
         llm: Optional[HelloAgentsLLM] = None,   # 压缩时使用
     ):
@@ -233,7 +233,7 @@ class ContextBuilder:
         user_query: str,
         conversation_history: Optional[List[Message]] = None,
         system_instructions: Optional[str] = None,
-        additional_packets: Optional[List[ContextPacket]] = None
+        additional_packets: Optional[List[ContextPacket]] = None    # 提供额外的上下文包，比如 note_tool
     ) -> str:
         """构建完整上下文，入口
         核心是 GSSC(Gather-Select-Structure-Compress)流水线，它将上下文构建过程分解为四个清晰的阶段
@@ -242,7 +242,7 @@ class ContextBuilder:
             user_query: 用户查询
             conversation_history: 对话历史
             system_instructions: 系统指令
-            additional_packets: 额外的上下文包
+            additional_packets: 额外的上下文包，比如 note_tool
             
         Returns:
             结构化上下文字符串
