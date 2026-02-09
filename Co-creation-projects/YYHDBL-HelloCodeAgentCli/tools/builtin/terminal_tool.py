@@ -1,4 +1,9 @@
 """TerminalTool - 命令行工具
+终端工具，支持智能体进行文件系统操作和即时上下文检索
+
+一、设计理念
+需要实时、轻量级的文件系统访问，而不是预先索引和向量化。TerminalTool 正是为这种"探索式"工作流设计的。
+
 
 为Agent提供安全的命令行执行能力，支持：
 - 文件系统操作（ls, cat, head, tail, find, grep）
@@ -7,7 +12,17 @@
 - 安全限制（白名单命令、路径限制、超时控制）
 
 使用场景：
-- JIT（即时）文件检索与分析
+- JIT（即时 Just In Time）文件检索与分析
+```
+# 传统方式:预先索引所有文件(成本高、可能过时)
+rag_tool.add_document("./project/**/*.py") # 耗时、占用大量存储
+
+# TerminalTool 方式:即时探索
+terminal.run({"command": "find . -name '*.py' -type f"}) # 快速、实时
+terminal.run({"command": "grep -r 'class UserService' ."}) # 精确定位
+terminal.run({"command": "head -n 50 src/services/user.py"}) # 按需查看
+```
+
 - 代码仓库探索
 - 日志文件分析
 - 数据文件预览
@@ -108,12 +123,12 @@ class TerminalTool(Tool):
         """初始化TerminalTool实例
         
         Args:
-            workspace: 工作目录路径，所有命令将在此目录或其子目录中执行
+            workspace: 工作目录路径，【所有命令将在此目录或其子目录中执行，不能访问其他目录】，工作目录沙箱机制
             timeout: 命令执行超时时间（秒），防止长时间运行的命令
-            max_output_size: 输出大小限制（字节），防止过大输出消耗资源
+            max_output_size: 输出大小限制（字节），防止过大输出消耗资源，执行完命令后的输出大小
             allow_cd: 是否允许cd命令，控制目录切换权限
-            confirm_dangerous: 是否在执行高风险命令时提示用户确认
-            default_shell_mode: 默认是否启用shell模式（支持管道、重定向等）
+            confirm_dangerous: 是否在执行高风险命令时【提示用户确认】
+            default_shell_mode: 默认是否启用shell模式（支持管道、重定向等），另外一种模式是argv
         """
         super().__init__(
             name="terminal",
@@ -167,6 +182,30 @@ class TerminalTool(Tool):
         # 提取并清理命令参数
         command = parameters.get("command", "").strip()
         allow_dangerous = bool(parameters.get("allow_dangerous", False))
+
+        """
+        shell_mode 和 argv 模式的主要区别在于命令的执行方式和安全性：
+        
+        > shell_mode
+        执行方式：通过系统的 shell（如 bash）解释命令
+        支持特性：
+            管道操作（|）
+            重定向（>、>>、<）
+            命令替换（$(...)、反引号）
+            逻辑操作符（&&、||、;）
+            变量展开和通配符
+        安全性：【较低】，容易受到 shell 注入攻击
+        适用场景：需要复杂 shell 功能的场景，复杂命令组合
+        
+        > argv 模式
+        执行方式：直接执行命令及其参数，不经过 shell 解释
+        支持特性：
+            基本命令执行
+            参数传递
+        安全性：较高，避免了 shell 注入风险
+        适用场景：简单的命令执行，注重安全性的场景
+        
+        """
         shell_mode = bool(parameters.get("shell_mode", self.default_shell_mode))
         
         # 基础安全检查：拒绝空命令，防止无意义的系统调用
@@ -209,6 +248,7 @@ class TerminalTool(Tool):
                 return "⛔️ 已取消执行（用户未确认）。"
 
         # 特殊命令处理：cd命令需要单独处理以维护工作目录状态
+        # 目录导航
         if base_command == 'cd':
             return self._handle_cd(parts)
         
@@ -368,6 +408,7 @@ class TerminalTool(Tool):
         # 宽容规则：仅当重定向目标不是 /dev/null 时才视为写盘；简单的 "|| echo ..." 视为安全。
         if self._has_unquoted(command, ">") or self._has_unquoted(command, ">>"):
             # 忽略 /dev/null 重定向（这是安全的丢弃输出操作）
+            # 知识点：正则表达式
             if re.search(r">\s*/dev/null", command) or re.search(r">>\s*/dev/null", command):
                 pass
             else:
@@ -432,6 +473,7 @@ class TerminalTool(Tool):
                 
             try:
                 # 使用shlex进行安全的命令分割，处理引号和转义
+                # 知识点：解析一个命令，并返回一个参数列表
                 argv = shlex.split(seg)
             except Exception:
                 # 如果解析失败，认为不安全
@@ -505,25 +547,31 @@ class TerminalTool(Tool):
 
         # Claude Code-like: pipes are allowed without confirmation; only confirm when it may write/escape/execute dangerous ops.
         if self.confirm_dangerous and (allow_dangerous or needs_allow):
+            # 从标准输入中读取用户输入
             ans = input(f"\n⚠️ 即将执行高风险 shell 命令：{command}\n允许执行？(y/n)\nconfirm> ").strip().lower()
             if ans not in {"y", "yes"}:
                 return "⛔️ 已取消执行（用户未确认）。"
 
         try:
+            # 知识点：用于创建和管理子进程。
+            # 它允许你启动新的进程、连接到它们的输入/输出/错误管道，并获取它们的返回码。
+            # 通过 subprocess，你可以执行系统命令、运行外部程序，并与其进行交互。
             result = subprocess.run(
                 command,
-                shell=True,
-                cwd=str(self.current_dir),
-                capture_output=True,
-                text=True,
-                timeout=self.timeout,
-                env=os.environ.copy(),
+                shell=True, # 设置为 True 时，命令会被传递给系统的 shell（如 bash 或 cmd）来执行，支持 shell 特性（如管道、重定向等）
+                cwd=str(self.current_dir), # Current Working Directory
+                capture_output=True, # 表示是否捕获命令的标准输出和标准错误。设置为 True 时，stdout 和 stderr 会被捕获并存储在返回的结果对象中，而不是直接输出到终端
+                text=True,  # 表示是否以文本模式处理输出。设置为 True 时，输出会被解码为字符串（UTF-8 编码），而不是原始字节流。
+                timeout=self.timeout, # 设置命令执行的超时时间（单位：秒）。如果命令执行时间超过此值，将会抛出 subprocess.TimeoutExpired 异常。这里的 self.timeout 是类中定义的超时时间，默认为 30 秒。
+                env=os.environ.copy(), # 指定命令执行时的环境变量。这里使用了 os.environ.copy()，表示复制当前进程的环境变量并传递给子进程。这样可以确保子进程拥有与父进程相同的环境配置。
             )
 
+            # 标准输出+错误
             output = (result.stdout or "") + (result.stderr or "")
             if len(output.encode("utf-8", errors="ignore")) > self.max_output_size:
                 output = output[: self.max_output_size] + "\n...output truncated...\n"
 
+            # 返回码
             if result.returncode != 0:
                 return f"命令执行失败 (返回码 {result.returncode}):\n{output}"
             return output.strip() if output.strip() else "(no output)"
@@ -632,6 +680,8 @@ class TerminalTool(Tool):
             for a in argv[1:]:
                 if a.startswith("-"):
                     continue  # 跳过选项参数（如 -r, -f 等）
+                # 知识点：resolve()是pathlib.Path 类的一个方法
+                # 如果路径是相对路径，resolve() 会将其转换为相对于当前工作目录的绝对路径
                 candidate = (self.current_dir / a).resolve()
                 try:
                     # 检查解析后的绝对路径是否在工作空间内

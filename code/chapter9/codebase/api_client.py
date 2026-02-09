@@ -20,6 +20,7 @@ class APIClient:
         """
         self.base_url = base_url
         self.api_key = api_key
+        # 知识点：创建会话对象（发送请求）
         self.session = requests.Session()
         
         if api_key:

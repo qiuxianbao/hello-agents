@@ -1,6 +1,28 @@
 """
 CodebaseMaintainer - 代码库维护助手
 
+# 长智能体的关键特性
+* 上下文管理，ContextBuilder 确保每次对话都有高质量的上下文，自动汇集相关笔记(特别是 blocker 类型)
+* 跨会话的连贯性，智能体通过 NoteTool 保持了跨多天、多个会话的任务连贯性
+* 即时的文件系统访问，TerminalTool 支持灵活的代码探索，无需预先索引整个代码库，可以即时查看具体文件内容，支持复杂的文本处理(grep、awk等)。
+* 自动化的知识管理，系统自动化地管理发现的知识，发现问题时自动创建 blocker 笔记，讨论计划时自动创建 action 笔记，关键信息自动存储到记忆系统。
+
+
+# 业务场景
+假设我们正在维护一个中型 Python Web 应用，这个代码库包含约 50 个 Python 文件，使用 Flask 框架构建，涵盖数据模型、业务逻辑、API 接口等多个模块，同时存在一些技术债务需要逐步清理。
+在这样的场景下，我们需要一个智能助手来帮助我们
+1.探索代码库，理解项目结构、依赖关系和代码风格；
+2.识别代码中的问题，比如代码重复、复杂度过高、缺少测试等；
+3.追踪任务进度，记录待办事项、已完成工作和遇到的阻塞；
+4.并基于历史上下文提供连贯的重构建议。
+
+# 挑战与解决方案
+这个场景面临几个典型的长程任务挑战。
+首先是信息量超出上下文窗口的问题，整个代码库可能包含数万行代码，无法一次性放入上下文窗口，我们通过使用 TerminalTool 进行即时、按需的代码探索来解决这个问题，只在需要时查看具体文件。
+其次是跨会话的状态管理挑战，重构任务可能持续数天，需要跨多个会话保持进度，我们使用 NoteTool记录阶段性进展、待办事项和关键决策来应对。
+最后是上下文质量与相关性的问题，每次对话需要回顾相关的历史信息，但不能被无关信息淹没，我们通过 ContextBuilder 智能筛选和组织上下文，确保高信号密度。
+
+
 完整的长程智能体实现，整合:
 1. ContextBuilder - 上下文管理
 2. NoteTool - 结构化笔记
@@ -122,11 +144,11 @@ class CodebaseMaintainer:
         relevant_notes = self._retrieve_relevant_notes(user_input)
         note_packets = self._notes_to_packets(relevant_notes)
 
-        # 第二步: 构建优化的上下文
+        # 第二步: 【构建优化的上下文】
         context = self.context_builder.build(
             user_query=user_input,
             conversation_history=self.conversation_history,
-            system_instructions=self._build_system_instructions(mode),
+            system_instructions=self._build_system_instructions(mode),  # 根据模式去创建提示词
             additional_packets=note_packets
         )
 

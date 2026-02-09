@@ -147,11 +147,11 @@ def main():
     print("=" * 80)
 
     # 演示各种使用场景
-    demo_exploratory_navigation()
-    demo_data_file_analysis()
-    demo_log_analysis()
-    demo_codebase_analysis()
-    demo_security_features()
+    demo_exploratory_navigation() #探索式文件导航
+    demo_data_file_analysis() #文件分析
+    demo_log_analysis() # 日志分析
+    demo_codebase_analysis() # 代码库分析
+    demo_security_features() # 安全特性
 
     print("\n" + "=" * 80)
     print("演示完成!")

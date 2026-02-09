@@ -11,6 +11,7 @@ class TestNodeTool:
         import re
 
         # 捕获分组示例
+        # 在 Python 中，r"" 表示一个原始字符串（raw string），它会告诉解释器不要对字符串中的反斜杠进行转义处理。
         pattern = r'(\d{2})-(\d{2})-(\d{4})'
         input_string = '31-12-2022'
 

@@ -33,7 +33,7 @@
 
 ### 长时程任务的上下文
 * 压缩整合（Compaction），GSSC（Gather-Select-Struct-Compress）
-* 结构化笔记（Structured note-taking）
+* 结构化笔记（Structured note-taking）+ 命令行工具（TerminalTool） 
 * 子代理架构（Sub-agent architectures）
 
 

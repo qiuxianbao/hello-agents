@@ -269,17 +269,19 @@ def main():
     )
 
     # 执行三天工作流
-    day_1_exploration(maintainer)
-    day_2_analysis(maintainer)
-    day_3_planning(maintainer)
-    week_later_review(maintainer)
+    day_1_exploration(maintainer) # 探索代码库（Agentic 方式）
+    day_2_analysis(maintainer) # 分析代码质量（Agentic 方式）
+    day_3_planning(maintainer) # 规划重构任务（Agentic 方式）
+    week_later_review(maintainer) # 一周后: 检查进度
 
     # 额外演示
     print("\n\n" + "=" * 80)
     print("额外演示")
     print("=" * 80)
 
+    # 演示跨会话的连贯性
     demonstrate_cross_session_continuity()
+    # 演示三大工具的协同
     demonstrate_tool_synergy()
 
     print("\n" + "=" * 80)
