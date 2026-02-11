@@ -69,9 +69,9 @@ class MCPTool(Tool):
         Args:
             name: 工具名称（默认为"mcp"，建议为不同服务器指定不同名称）
             description: 工具描述（可选，默认为通用描述）
-            server_command: 服务器启动命令（如 ["python", "server.py"]）
+            server_command: 【服务器启动命令】（如 ["python", "server.py"]）
             server_args: 服务器参数列表
-            server: FastMCP 服务器实例（可选，用于内存传输）
+            server: FastMCP 【服务器实例】（可选，用于内存传输）
             auto_expand: 是否自动展开为独立工具（默认True）
             env: 环境变量字典（优先级最高，直接传递给MCP服务器）
             env_keys: 要从系统环境变量加载的key列表（优先级中等）
@@ -116,7 +116,7 @@ class MCPTool(Tool):
         # 环境变量处理（优先级：env > env_keys > 自动检测）
         self.env = self._prepare_env(env, env_keys, server_command)
 
-        # 如果没有指定任何服务器，创建内置演示服务器
+        # 如果没有指定任何服务器，创建【内置演示服务器】
         if not server_command and not server:
             self.server = self._create_builtin_server()
 
@@ -158,6 +158,7 @@ class MCPTool(Tool):
             for part in server_command:
                 if "server-" in part:
                     # 提取类似 "@modelcontextprotocol/server-github" 中的 "server-github"
+                    # 从列表末尾开始取元素，即取最后一个元素
                     server_name = part.split("/")[-1] if "/" in part else part
                     break
 
@@ -165,6 +166,7 @@ class MCPTool(Tool):
             if server_name and server_name in MCP_SERVER_ENV_MAP:
                 auto_keys = MCP_SERVER_ENV_MAP[server_name]
                 for key in auto_keys:
+                    # 从环境变量中取
                     value = os.getenv(key)
                     if value:
                         result_env[key] = value
@@ -173,6 +175,7 @@ class MCPTool(Tool):
         # 2. env_keys指定的环境变量（优先级中等）
         if env_keys:
             for key in env_keys:
+                # 知识点：获取环境变量
                 value = os.getenv(key)
                 if value:
                     result_env[key] = value
@@ -191,10 +194,20 @@ class MCPTool(Tool):
     def _create_builtin_server(self):
         """创建内置演示服务器"""
         try:
+            """
+            知识点：框架FastMCP
+            FastMCP 是一个用于快速构建和运行 MCP（Model Context Protocol）服务器的 Python 库。
+            它提供了简洁的 API 来定义工具和服务，使得开发者可以轻松地将自定义功能暴露给 MCP 客户端调用
+            
+            简化开发：能够通过装饰器快速定义工具
+            高性能：异步编程
+            易于集成：可作为独立服务器运行，也可嵌入到现有应用中
+            """
             from fastmcp import FastMCP
 
             server = FastMCP("HelloAgents-BuiltinServer")
 
+            # 知识点：内置tool
             @server.tool()
             def add(a: float, b: float) -> float:
                 """加法计算器"""
@@ -225,6 +238,7 @@ class MCPTool(Tool):
             @server.tool()
             def get_system_info() -> dict:
                 """获取系统信息"""
+                # 知识点：系统信息
                 import platform
                 import sys
                 return {
@@ -249,28 +263,42 @@ class MCPTool(Tool):
 
             async def discover():
                 client_source = self.server if self.server else self.server_command
+                # 会自动调用 __aenter__ 去构建 MCPClient
                 async with MCPClient(client_source, self.server_args, env=self.env) as client:
                     tools = await client.list_tools()
                     return tools
 
             # 运行异步发现
+            # 异步发现 MCP 服务器提供的工具列表
             try:
+                # 使用 asyncio.get_running_loop() 获取当前线程中正在运行的事件循环。
+                # 如果没有运行中的事件循环， RuntimeError: no running event loop
                 loop = asyncio.get_running_loop()
                 # 如果已有循环，在新线程中运行
                 import concurrent.futures
                 def run_in_thread():
+                    # 为新线程创建一个事件循环
                     new_loop = asyncio.new_event_loop()
+                    # 将新事件循环设置为当前线程的默认循环
                     asyncio.set_event_loop(new_loop)
                     try:
+                        # 执行异步任务
                         return new_loop.run_until_complete(discover())
                     finally:
+                        # 关闭事件循环
                         new_loop.close()
 
+                # 知识点：线程池
+                # 为避免阻塞，在新线程中运行异步任务
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     future = executor.submit(run_in_thread)
                     self._available_tools = future.result()
             except RuntimeError:
                 # 没有运行中的循环
+                """
+                在 Jupyter Notebook 或某些 Web 框架（如 FastAPI）中，主线程可能已经有一个运行中的事件循环。
+                不能直接调用，否则会抛出 RuntimeError: asyncio.run() cannot be called from a running event loop
+                """
                 self._available_tools = asyncio.run(discover())
 
         except Exception as e:
@@ -278,7 +306,13 @@ class MCPTool(Tool):
             self._available_tools = []
 
     def _generate_description(self) -> str:
-        """生成增强的工具描述"""
+        """生成增强的工具描述
+        {
+            "action": "call_tool",
+            "tool_name": "工具名",
+            "arguments": {...}
+        }
+        """
         if not self._available_tools:
             return "连接到 MCP 服务器，调用工具、读取资源和获取提示词。支持内置服务器和外部服务器。"
 
@@ -378,8 +412,11 @@ class MCPTool(Tool):
                     # 使用外部服务器命令
                     client_source = self.server_command
 
+                # async 异步，会自动调用 __aenter__ 去创建 MCPClient
                 async with MCPClient(client_source, self.server_args, env=self.env) as client:
                     if action == "list_tools":
+                        # 初始化已经设置了
+                        # self._available_tools
                         tools = await client.list_tools()
                         if not tools:
                             return "没有找到可用的工具"
@@ -690,7 +727,7 @@ class ANPTool(Tool):
         
         Args:
             parameters: 包含以下参数的字典
-                - action: 操作类型 (register_service, discover_services, add_node, route_message, get_stats)
+                - action: 操作类型 (register_service[注册服务], discover_services[发现服务], add_node, route_message, get_stats)
                 - service_id, service_type, endpoint: 服务信息（register_service 需要）
                 - node_id, endpoint: 节点信息（add_node 需要）
                 - from_node, to_node, message: 路由信息（route_message 需要）

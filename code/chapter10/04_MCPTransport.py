@@ -1,10 +1,10 @@
 from hello_agents.tools import MCPTool
 
-# 1. Memory Transport - 内存传输（用于测试）
+# 1. Memory Transport - 内存传输（适用场景：单元测试、快速原型开发）
 # 不指定任何参数，使用内置演示服务器
 mcp_tool = MCPTool()
 
-# 2. Stdio Transport - 标准输入输出传输（本地开发）
+# 2. Stdio Transport - 标准输入输出传输（适用场景：本地开发、调试、Python 脚本服务器）
 # 使用命令列表启动本地服务器
 mcp_tool = MCPTool(server_command=["python", "examples/mcp_example_server.py"])
 
@@ -16,9 +16,11 @@ mcp_tool = MCPTool(server_command=["python", "examples/mcp_example_server.py", "
 # 使用npx启动社区MCP服务器
 mcp_tool = MCPTool(server_command=["npx", "-y", "@modelcontextprotocol/server-filesystem", "."])
 
-# 5. HTTP/SSE/StreamableHTTP Transport
-# 注意：MCPTool主要用于Stdio和Memory传输
-# 对于HTTP/SSE等远程传输，建议直接使用MCPClient
+# 5. HTTP/SSE/StreamableHTTP Transport（适用场景：生产环境、远程服务、微服务架构）
+
+# 注意：
+# 1.MCPTool主要用于Stdio和Memory传输
+# 2.对于HTTP/SSE等远程传输，建议直接使用MCPClient
 
 from hello_agents.tools import MCPTool
 

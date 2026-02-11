@@ -1,6 +1,9 @@
 import asyncio
 from hello_agents.protocols import MCPClient
 
+
+# 1.建立连接
+# 最常用的是 Stdio 模式（通过标准输入输出与本地进程通信）
 async def connect_to_server():
     # 方式1：连接到社区提供的文件系统服务器
     # npx会自动下载并运行@modelcontextprotocol/server-filesystem包
@@ -26,6 +29,7 @@ async def connect_to_server():
 asyncio.run(connect_to_server())
 
 
+# 2.能力发现
 async def discover_tools():
     client = MCPClient(["npx", "-y", "@modelcontextprotocol/server-filesystem", "."])
 
@@ -65,6 +69,7 @@ asyncio.run(discover_tools())
 #   - content (string): 文件内容
 
 
+# 3.调用工具
 async def use_tools():
     client = MCPClient(["npx", "-y", "@modelcontextprotocol/server-filesystem", "."])
 
@@ -86,10 +91,12 @@ async def use_tools():
 
 asyncio.run(use_tools())
 
+#
 async def safe_tool_call():
     client = MCPClient(["npx", "-y", "@modelcontextprotocol/server-filesystem", "."])
 
     async with client:
+        # 添加 try...exception 块，安全调用
         try:
             # 尝试读取可能不存在的文件
             result = await client.call_tool("read_file", {"path": "nonexistent.txt"})
