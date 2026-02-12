@@ -1,0 +1,3 @@
+pytest
+python-dotenv
+hello-agents[all]==0.2.2
