@@ -2,8 +2,8 @@
 协议工具集合
 
 提供基于协议实现的工具接口：
-- MCP Tool: 基于 fastmcp 库，用于连接和调用 MCP 服务器
-- A2A Tool: 基于官方 a2a 库，用于 Agent 间通信（需要安装 a2a）
+- MCP Tool: 基于 【fastmcp】 库，用于连接和调用 MCP 服务器
+- A2A Tool: 基于官方 【a2a】 库，用于 Agent 间通信（需要安装 a2a）
 - ANP Tool: 基于概念实现，用于服务发现和网络管理
 """
 
