@@ -74,9 +74,9 @@ class A2ATool(Tool):
     """将 A2A Agent 封装为 HelloAgents Tool"""
 
     def __init__(self, name: str, description: str, agent_url: str, skill_name: str = "answer"):
-        self.agent_url = agent_url
+        self.agent_url = agent_url   # agent 地址
         self.skill_name = skill_name
-        self.client = A2AClient(agent_url)
+        self.client = A2AClient(agent_url)  #
         self._name = name
         self._description = description
         self._parameters = [

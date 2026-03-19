@@ -35,6 +35,10 @@ def start_server():
     researcher.run(host="localhost", port=5000)
 
 if __name__ == "__main__":
+    """
+    知识点：启动一个守护线程
+    主线程休眠，通过键盘操作停止
+    """
     server_thread = threading.Thread(target=start_server, daemon=True)
     server_thread.start()
     
