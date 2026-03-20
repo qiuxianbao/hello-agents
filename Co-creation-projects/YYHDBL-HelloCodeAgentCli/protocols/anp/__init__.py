@@ -62,10 +62,12 @@ def register_service(
         )
         return discovery.register_service(service_info)
 
+# 这是典型的 Facade 模式（外观模式）
 def discover_service(discovery: ANPDiscovery, service_type: str = None):
     """发现服务的便捷函数"""
     return discovery.discover_services(service_type=service_type)
 
+# 通过 __all__ 列表明确导出公共 API，限制外部访问
 __all__ = [
     "ANPDiscovery",
     "ANPNetwork",
