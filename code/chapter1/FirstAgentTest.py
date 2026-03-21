@@ -1,3 +1,5 @@
+
+# 系统提示词
 AGENT_SYSTEM_PROMPT = """
 你是一个智能旅行助手。你的任务是分析用户的请求，并使用可用工具一步步地解决问题。
 
@@ -25,23 +27,23 @@ def get_weather(city: str) -> str:
     """
     # API端点，我们请求JSON格式的数据
     url = f"https://wttr.in/{city}?format=j1"
-    
+
     try:
         # 发起网络请求
         response = requests.get(url)
         # 检查响应状态码是否为200 (成功)
-        response.raise_for_status() 
+        response.raise_for_status()
         # 解析返回的JSON数据
         data = response.json()
-        
+
         # 提取当前天气状况
         current_condition = data['current_condition'][0]
         weather_desc = current_condition['weatherDesc'][0]['value']
         temp_c = current_condition['temp_C']
-        
+
         # 格式化成自然语言返回
         return f"{city}当前天气：{weather_desc}，气温{temp_c}摄氏度"
-        
+
     except requests.exceptions.RequestException as e:
         # 处理网络错误
         return f"错误：查询天气时遇到网络问题 - {e}"
@@ -68,24 +70,24 @@ def get_attraction(city: str, weather: str) -> str:
 
     # 2. 初始化Tavily客户端
     tavily = TavilyClient(api_key=api_key)
-    
+
     # 3. 构造一个精确的查询
     query = f"'{city}' 在'{weather}'天气下最值得去的旅游景点推荐及理由"
-    
+
     try:
         # 4. 调用API，include_answer=True会返回一个综合性的回答
         response = tavily.search(query=query, search_depth="basic", include_answer=True)
-        
+
         # 5. Tavily返回的结果已经非常干净，可以直接使用
         # response['answer'] 是一个基于所有搜索结果的总结性回答
         if response.get("answer"):
             return response["answer"]
-        
+
         # 如果没有综合性回答，则格式化原始结果
         formatted_results = []
         for result in response.get("results", []):
             formatted_results.append(f"- {result['title']}: {result['content']}")
-        
+
         if not formatted_results:
              return "抱歉，没有找到相关的旅游景点推荐。"
 
@@ -153,16 +155,29 @@ prompt_history = [f"用户请求: {user_prompt}"]
 print(f"用户输入: {user_prompt}\n" + "="*40)
 
 # --- 3. 运行主循环 ---
+# 策略：最大循环次数
 for i in range(5): # 设置最大循环次数
     print(f"--- 循环 {i+1} ---\n")
-    
+
     # 3.1. 构建Prompt
+    # 每次的history都要作为新的提示词
     full_prompt = "\n".join(prompt_history)
-    
+
     # 3.2. 调用LLM进行思考
     llm_output = llm.generate(full_prompt, system_prompt=AGENT_SYSTEM_PROMPT)
     # 模型可能会输出多余的Thought-Action，需要截断
-    match = re.search(r'(Thought:.*?Action:.*?)(?=\n\s*(?:Thought:|Action:|Observation:)|\Z)', llm_output, re.DOTALL)
+    """
+    1.主体捕获组：
+        (Thought:.*?Action:.*?)，非贪婪匹配 ? 
+        . 任意字符
+    2.前瞻断言
+        (?=\n\s*(?:Thought:|Action:|Observation:)|\Z)
+        去除重复多余内容
+        
+    re.DOTALL：让点号 . 能够匹配包括换行符在内的所有字符
+    """
+    match = re.search(r'(Thought:.*?Action:.*?)(?=\n\s*(?:Thought:|Action:|Observation:)|\Z)',
+                      llm_output, re.DOTALL)
     if match:
         truncated = match.group(1).strip()
         if truncated != llm_output.strip():
@@ -170,7 +185,7 @@ for i in range(5): # 设置最大循环次数
             print("已截断多余的 Thought-Action 对")
     print(f"模型输出:\n{llm_output}\n")
     prompt_history.append(llm_output)
-    
+
     # 3.3. 解析并执行行动
     action_match = re.search(r"Action: (.*)", llm_output, re.DOTALL)
     if not action_match:
@@ -182,11 +197,22 @@ for i in range(5): # 设置最大循环次数
         final_answer = re.search(r'finish\(answer="(.*)"\)', action_str).group(1)
         print(f"任务完成，最终答案: {final_answer}")
         break
-    
+
+    # Action: tool1(param="value1")
+    # 匹配左括号 \( 前面的内容
     tool_name = re.search(r"(\w+)\(", action_str).group(1)
+    # 匹配左括号 \(， 匹配有括号
     args_str = re.search(r"\((.*)\)", action_str).group(1)
+    """
+    查询所有参数
+    (\w+) 捕获组1，参数名
+    = 匹配等号
+    " 匹配左双引号
+    ([^"]*) 表示除了双引号外的字符
+    """
     kwargs = dict(re.findall(r'(\w+)="([^"]*)"', args_str))
 
+    # 调用工具返回结果
     if tool_name in available_tools:
         observation = available_tools[tool_name](**kwargs)
     else:
