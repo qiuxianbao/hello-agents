@@ -1,3 +1,8 @@
 pytest
 python-dotenv
+# 升级 PyTorch 到 2.4+ 以支持最新特性
+torch>=2.4.0
+torchvision>=0.19.0
+torchaudio>=2.4.0
 hello-agents[all]==0.2.2
+matplotlib>=3.6.0
