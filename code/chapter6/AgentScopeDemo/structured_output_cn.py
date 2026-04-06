@@ -1,13 +1,21 @@
 # -*- coding: utf-8 -*-
-"""三国狼人杀游戏的结构化输出模型"""
+"""
+三国狼人杀游戏的结构化输出模型
+
+
+"""
 from typing import Literal, Optional, List
 from pydantic import BaseModel, Field
 from agentscope.agent import AgentBase
 
+"""
+pydantic 是 Python 数据验证和设置管理库
+"""
+
 
 class DiscussionModelCN(BaseModel):
     """中文版讨论输出格式"""
-    
+
     reach_agreement: bool = Field(
         description="是否已达成一致意见",
     )
@@ -23,10 +31,10 @@ class DiscussionModelCN(BaseModel):
 
 def get_vote_model_cn(agents: list[AgentBase]) -> type[BaseModel]:
     """获取中文版投票模型"""
-    
+
     class VoteModelCN(BaseModel):
         """中文版投票输出格式"""
-        
+
         vote: Literal[tuple(_.name for _ in agents)] = Field(
             description="你要投票淘汰的玩家姓名",
         )
@@ -37,19 +45,19 @@ def get_vote_model_cn(agents: list[AgentBase]) -> type[BaseModel]:
             description="对被投票者的怀疑程度(1-10)",
             ge=1, le=10
         )
-    
+
     return VoteModelCN
 
 
 class WitchActionModelCN(BaseModel):
     """中文版女巫行动模型"""
-    
+
     use_antidote: bool = Field(
         description="是否使用解药救人",
         default=False
     )
     use_poison: bool = Field(
-        description="是否使用毒药杀人", 
+        description="是否使用毒药杀人",
         default=False
     )
     target_name: Optional[str] = Field(
@@ -64,10 +72,10 @@ class WitchActionModelCN(BaseModel):
 
 def get_seer_model_cn(agents: list[AgentBase]) -> type[BaseModel]:
     """获取中文版预言家模型"""
-    
+
     class SeerModelCN(BaseModel):
         """中文版预言家查验格式"""
-        
+
         target: Literal[tuple(_.name for _ in agents)] = Field(
             description="要查验的玩家姓名",
         )
@@ -78,16 +86,16 @@ def get_seer_model_cn(agents: list[AgentBase]) -> type[BaseModel]:
             description="查验优先级(1-10)",
             ge=1, le=10
         )
-    
+
     return SeerModelCN
 
 
 def get_hunter_model_cn(agents: list[AgentBase]) -> type[BaseModel]:
     """获取中文版猎人模型"""
-    
+
     class HunterModelCN(BaseModel):
         """中文版猎人开枪格式"""
-        
+
         shoot: bool = Field(
             description="是否使用开枪技能",
         )
@@ -99,13 +107,13 @@ def get_hunter_model_cn(agents: list[AgentBase]) -> type[BaseModel]:
             description="开枪理由",
             default=None
         )
-    
+
     return HunterModelCN
 
 
 class WerewolfKillModelCN(BaseModel):
     """中文版狼人击杀模型"""
-    
+
     target: str = Field(
         description="要击杀的玩家姓名",
     )
@@ -120,13 +128,13 @@ class WerewolfKillModelCN(BaseModel):
 
 class GameAnalysisModelCN(BaseModel):
     """中文版游戏分析模型"""
-    
+
     suspected_werewolves: List[str] = Field(
         description="怀疑的狼人名单",
         default_factory=list
     )
     trusted_players: List[str] = Field(
-        description="信任的玩家名单", 
+        description="信任的玩家名单",
         default_factory=list
     )
     key_clues: List[str] = Field(

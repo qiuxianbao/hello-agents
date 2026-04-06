@@ -1,10 +1,11 @@
 """
 AutoGen 软件开发团队协作案例
+在本案例中，软件开发的流程是相对固定的（需求->编码->审查->测试），因此 RoundRobinGroupChat (轮询群聊)是理想的选择。
 """
 
-import os
 import asyncio
-from typing import List, Dict, Any
+import os
+
 from dotenv import load_dotenv
 
 # 加载环境变量
@@ -17,6 +18,7 @@ from autogen_agentchat.teams import RoundRobinGroupChat
 from autogen_agentchat.conditions import TextMentionTermination
 from autogen_agentchat.ui import Console
 
+
 def create_openai_model_client():
     """创建 OpenAI 模型客户端用于测试"""
     return OpenAIChatCompletionClient(
@@ -24,6 +26,7 @@ def create_openai_model_client():
         api_key=os.getenv("LLM_API_KEY"),
         base_url=os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
     )
+
 
 def create_product_manager(model_client):
     """创建产品经理智能体"""
@@ -50,6 +53,7 @@ def create_product_manager(model_client):
         system_message=system_message,
     )
 
+
 def create_engineer(model_client):
     """创建软件工程师智能体"""
     system_message = """你是一位资深的软件工程师，擅长 Python 开发和 Web 应用构建。
@@ -74,6 +78,7 @@ def create_engineer(model_client):
         model_client=model_client,
         system_message=system_message,
     )
+
 
 def create_code_reviewer(model_client):
     """创建代码审查员智能体"""
@@ -100,8 +105,12 @@ def create_code_reviewer(model_client):
         system_message=system_message,
     )
 
+
 def create_user_proxy():
-    """创建用户代理智能体"""
+    """创建用户代理智能体
+    代表最终用户，发起初始任务，并负责执行和验证最终交付的代码
+
+    """
     return UserProxyAgent(
         name="UserProxy",
         description="""用户代理，负责以下职责：
@@ -113,37 +122,53 @@ def create_user_proxy():
 完成测试后请回复 TERMINATE。""",
     )
 
+
 async def run_software_development_team():
     """运行软件开发团队协作"""
-    
+
     print("🔧 正在初始化模型客户端...")
-    
+
     # 先使用标准的 OpenAI 客户端测试
     model_client = create_openai_model_client()
-    
+
     print("👥 正在创建智能体团队...")
-    
+
     # 创建智能体团队
+    """
+    AssistantAgent(助理智能体)： 这是任务的主要解决者，其核心是封装了一个大型语言模型（LLM）
+    
+    UserProxyAgent(用户代理智能体)：它扮演着双重角色,既是人类用户的“代言人”，负责发起任务和传达意图；
+    又是一个可靠的“执行器”，可以配置为执行代码或调用工具，并将结果反馈给其他智能体。
+    这种设计清晰地区分了“思考”（由 AssistantAgent 完成）与“行动”。 
+    """
     product_manager = create_product_manager(model_client)
     engineer = create_engineer(model_client)
     code_reviewer = create_code_reviewer(model_client)
     user_proxy = create_user_proxy()
-    
+
     # 添加终止条件
     termination = TextMentionTermination("TERMINATE")
-    
+
     # 创建团队聊天
+    """
+    轮询群聊 (RoundRobinGroupChat)： 
+    这是一种明确的、顺序化的对话协调机制。它会让参与的智能体按照预定义的顺序依次发言。
+    
+    场景：
+    这种模式非常适用于流程固定的任务。
+    
+    """
     team_chat = RoundRobinGroupChat(
-        participants=[
+        participants=[  # participants 列表的顺序决定了智能体发言的先后次序
             product_manager,
-            engineer, 
+            engineer,
             code_reviewer,
             user_proxy
         ],
-        termination_condition=termination,
-        max_turns=20,  # 增加最大轮次
+        termination_condition=termination,  # 是控制协作流程何时结束的关键
+        max_turns=20,  # 增加最大轮次，用于防止对话陷入无限循环
     )
-    
+
     # 定义开发任务
     task = """我们需要开发一个比特币价格显示应用，具体要求如下：
 
@@ -158,36 +183,79 @@ async def run_software_development_team():
 - 添加适当的错误处理和加载状态
 
 请团队协作完成这个任务，从需求分析到最终实现。"""
-    
+
     # 执行团队协作
     print("🚀 启动 AutoGen 软件开发团队协作...")
     print("=" * 60)
-    
+
     # 使用 Console 来显示对话过程
-    result = await Console(team_chat.run_stream(task=task))
+    """
+    🔧 正在初始化模型客户端...
+    👥 正在创建智能体团队...
+    🚀 启动 AutoGen 软件开发团队协作...
+    ============================================================
+    ---------- TextMessage (user) ----------
+    我们需要开发一个比特币价格显示应用，具体要求如下：
+    ...
+    请团队协作完成这个任务，从需求分析到最终实现。
+    ---------- TextMessage (ProductManager) ----------
+    ### 1. 需求理解与分析
+    ...
+    请工程师开始实现。
+    ---------- TextMessage (Engineer) ----------
+    ### 技术方案实施
+    ...
+    请代码审查员检查。
+    ---------- TextMessage (CodeReviewer) ----------
+    ### 代码审查
+    ...
+    代码审查完成，请用户代理测试。
+    ---------- TextMessage (UserProxy) ----------
+    已经完成需求
+    ---------- TextMessage (ProductManager) ----------
+    太好了，感谢您的反馈！如果在使用过程中有任何问题，或者有其他功能需求和改进建议，请随时告知我们。我们会持
+    续提供支持和改进。期待您对我们的应用
+    有愉快的使用体验！
+    ---------- TextMessage (Engineer) ----------
+    很高兴听到项目顺利完成。如果您或用户有任何问题或者需要帮助，请随时联系我们。感谢您对我们工作的支持，让我
+    们一起确保应用稳定运行并不断优化用户
+    体验！
+    ---------- TextMessage (CodeReviewer) ----------
+    非常感谢大家的努力与协作，使得项目能够顺利完成。未来若有更多技术支持的需求或者需要改进的地方，我们愿意为
+    项目的持续优化贡
+    献力量。期待用户能够享受到流畅的体验，同时也欢迎提出更多的反馈与建议。再次感谢团队的合作！
+    ---------- TextMessage (UserProxy) ----------
+    Enter your response: TERMINATE
+    ============================================================
+    ✅ 团队协作完成！
+    📋 协作结果摘要：
+    - 参与智能体数量：4个
+    - 任务完成状态：成功
     
+    """
+    result = await Console(team_chat.run_stream(task=task))
+
     print("\n" + "=" * 60)
     print("✅ 团队协作完成！")
-    
+
     return result
+
 
 # 主程序入口
 if __name__ == "__main__":
     try:
         # 运行异步协作流程
         result = asyncio.run(run_software_development_team())
-        
+
         print(f"\n📋 协作结果摘要：")
         print(f"- 参与智能体数量：4个")
         print(f"- 任务完成状态：{'成功' if result else '需要进一步处理'}")
-        
+
     except ValueError as e:
         print(f"❌ 配置错误：{e}")
         print("请检查 .env 文件中的配置是否正确")
     except Exception as e:
         print(f"❌ 运行错误：{e}")
         import traceback
+
         traceback.print_exc()
-
-
-

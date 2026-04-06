@@ -2,11 +2,18 @@ import streamlit as st
 import requests
 import json
 
+"""
+Streamlit 是一个用于快速创建数据应用和仪表板的 Python 库。
+它允许开发者仅用纯 Python 代码就能构建交互式 Web 应用,而无需编写 HTML、CSS 或 JavaScript。
+"""
+
+
 # 数据获取函数
 def get_bitcoin_price():
     try:
         # 获取 Bitcoin 的价格数据
-        response = requests.get('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true')
+        response = requests.get(
+            'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true')
         data = response.json()
         # 获取当前价格和24小时变化
         current_price = data['bitcoin']['usd']
@@ -16,6 +23,7 @@ def get_bitcoin_price():
     except requests.exceptions.RequestException as e:
         st.error(f"Error fetching data: {e}")
         return None, None
+
 
 # 初始化 Streamlit 应用
 st.title('实时比特币价格')

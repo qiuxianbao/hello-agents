@@ -11,7 +11,7 @@ LLM_API_KEY = os.getenv("LLM_API_KEY")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL")
 LLM_MODEL = os.getenv("LLM_MODEL")
 
-#创建模型,在这里以Qwen为例,调用的百炼大模型平台API
+# 创建模型,在这里以Qwen为例,调用的百炼大模型平台API
 model = ModelFactory.create(
     model_platform=ModelPlatformType.QWEN,
     model_type=LLM_MODEL,
@@ -33,9 +33,10 @@ task_prompt = """
 print(Fore.YELLOW + f"协作任务:\n{task_prompt}\n")
 
 # 初始化角色扮演会话
+# 这是 CAMEL 的核心操作，它根据我们提供的角色和任务，快速构建一个双智能体协作“社会”
 role_play_session = RolePlaying(
-    assistant_role_name="心理学家", 
-    user_role_name="作家", 
+    assistant_role_name="心理学家",  # AI 心理学家作为 "assistant"，负责提供专业知识和内容
+    user_role_name="作家",  # AI 作家作为 "user"，负责提出写作结构和要求，user 角色是对话的“推动者”和“需求方”
     task_prompt=task_prompt,
     model=model
 )
@@ -44,20 +45,23 @@ print(Fore.CYAN + f"具体任务描述:\n{role_play_session.task_prompt}\n")
 
 # 开始协作对话
 chat_turn_limit, n = 30, 0
+# 调用 init_chat() 来获得由 AI 生成的初始对话消息
 input_msg = role_play_session.init_chat()
 
 while n < chat_turn_limit:
     n += 1
+    # step() 方法驱动一轮完整的对话，AI 用户和 AI 助理各发言一次
     assistant_response, user_response = role_play_session.step(input_msg)
-    
+
     print_text_animated(Fore.BLUE + f"作家:\n\n{user_response.msg.content}\n")
     print_text_animated(Fore.GREEN + f"心理学家:\n\n{assistant_response.msg.content}\n")
-    
+
     # 检查任务完成标志
     if "CAMEL_TASK_DONE" in user_response.msg.content:
         print(Fore.MAGENTA + "✅ 电子书创作完成！")
         break
-    
+
+    # 将助理的回复作为下一轮对话的输入
     input_msg = assistant_response.msg
 
 print(Fore.YELLOW + f"总共进行了 {n} 轮协作对话")
