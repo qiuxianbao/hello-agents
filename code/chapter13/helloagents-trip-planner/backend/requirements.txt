@@ -3,7 +3,7 @@ hello-agents[protocols]>=0.2.4
 
 # FastAPI和相关依赖
 fastapi>=0.115.0
-uvicorn[standard]>=0.32.0
+uvicorn[standard]>=0.32.0 # 一个轻量级、高性能的 ASGI 服务器，用于运行 Python 异步 Web 引用
 pydantic>=2.0.0
 pydantic-settings>=2.0.0
 

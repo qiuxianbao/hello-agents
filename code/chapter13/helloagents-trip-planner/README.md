@@ -93,6 +93,9 @@ cp .env.example .env
 
 5. 启动后端服务
 ```bash
+# 1.app.api.main - Python 模块路径（对应文件 app/api/main.py）, app - 该模块中的 FastAPI 应用实例变量名
+# 2. --reload - 启动时自动重新加载代码
+# 3. 0.0.0.0 表示监听所有网络接口
 uvicorn app.api.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
