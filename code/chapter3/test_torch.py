@@ -54,10 +54,28 @@ def test_torch_tensor():
     """
     one = torch.tensor(1)
     print(one)  # tensor(1)
+    print(one.shape)  # torch.Size([])
 
+    """
+    一维张量（1D Tensor）- 向量
+    类比：Excel中的一行数据
+    应用：单个样本的特征向量（如：一个人的年龄、身高、体重）
+    """
     tensor = torch.tensor([1, 2, 3])
     print(tensor)  # tensor([1, 2, 3])
+    print(tensor.shape)  # torch.Size([3])
 
+    """
+    二维张量（2D Tensor）- 矩阵
+    
+    结构： 一个表格，有行和列
+    类比： Excel中的一个工作表（多行多列） 
+    
+    应用：
+    批量数据：3个样本，每个样本5个特征
+    图像：灰度图（高×宽）
+    传统机器学习的数据
+    """
     zeros = torch.zeros(3, 3)
     """
     tensor([[0., 0., 0.],
@@ -65,6 +83,48 @@ def test_torch_tensor():
         [0., 0., 0.]])
     """
     print(zeros)
+    print(zeros.shape)  # torch.Size([3, 3])
+
+    """
+    三维张量（3D Tensor）- 立方体
+    
+    结构：多个表格堆叠在一起
+    类比：Excel中的多个工作表，或一本书的多页
+    
+    应用：
+    NLP（你的例子）：[batch_size, sequence_length, embedding_dim]
+      - 1个句子 × 4个token × 384维嵌入
+    彩色图像：[batch, height, channels] 或 [batch, channels, height, width]（4D）
+    时间序列：[批次, 时间步, 特征数]
+    """
+    # 示例1：创建一个简单的3D张量 (2, 3, 4)
+    # 含义：2个"页面"，每个页面3行4列
+    tensor_3d = torch.tensor([
+        [[1, 2, 3, 4],  # 第1个页面的第1行
+         [5, 6, 7, 8],  # 第1个页面的第2行
+         [9, 10, 11, 12]],  # 第1个页面的第3行
+
+        [[13, 14, 15, 16],  # 第2个页面的第1行
+         [17, 18, 19, 20],  # 第2个页面的第2行
+         [21, 22, 23, 24]]  # 第2个页面的第3行
+    ])
+    print(tensor_3d)
+    print(tensor_3d.shape)  # torch.Size([2, 3, 4])
+
+    # 示例2：NLP场景 - 批量句子的词嵌入
+    # 1个批次，包含2个句子，每个句子5个词，每个词用768维向量表示
+    batch_sentences = torch.randn(2, 5, 768)
+    print(f"\nNLP示例形状：{batch_sentences.shape}")  # NLP示例形状：torch.Size([2, 5, 768])
+
+    # 访问具体元素
+    # 获取第1个句子（索引0）的第3个词（索引2）的嵌入向量
+    word_embedding = batch_sentences[0, 2, :]  # 形状：[768]
+    print(f"单个词的嵌入向量形状：{word_embedding.shape}")  # 单个词的嵌入向量形状：torch.Size([768])
+
+    # 示例3：使用时间序列数据
+    # 10个样本，每个样本有20个时间步，每个时间步有5个特征
+    time_series = torch.randn(10, 20, 5)
+    print(f"\n时间序列形状：{time_series.shape}")  # 时间序列形状：torch.Size([10, 20, 5])
 
     ones = torch.ones(2, 2)
     """
@@ -116,6 +176,30 @@ def test_torch_tensor():
     model = nn.Linear(20, 10)  # 输入 20 维，输出 10 维
     output = model(batch_input)  # 前向传播
     print(output.shape)  # torch.Size([128, 10])
+
+
+def test_torch_convert():
+    # 2d->3d
+    tensor_2d = torch.randn(4, 384)
+
+    # 方法1：unsqueeze() 在第0维插入新维度
+    tensor_3d = tensor_2d.unsqueeze(0)
+    print(tensor_3d.shape)  # torch.Size([1, 4, 384])
+
+    # 方法2：reshape
+    tensor_3d = tensor_2d.reshape(1, 4, 384)
+    print(tensor_3d.shape)  # torch.Size([1, 4, 384])
+
+    # 3d->2d
+    tensor_3d = torch.randn(1, 4, 384)
+
+    # 方法1：squeeze() 去掉所有大小为1的维度
+    tensor_2d = tensor_3d.squeeze(0)  # 指定去掉第0维
+    print(tensor_2d.shape)  # torch.Size([4, 384])
+
+    # 方法2：直接索引
+    tensor_2d = tensor_3d[0]  # 取第0个批次
+    print(tensor_2d.shape)  # torch.Size([4, 384])
 
 
 def test_torch_gpu():
@@ -737,7 +821,9 @@ def _main():
     # test_torch_activation_func()
     # test_nn_activation_func()
 
-    test_torch_tensor()
+    # test_torch_tensor()
+    test_torch_convert()
+
     # test_torch_gpu()
 
     # test_torch_nn()
@@ -746,7 +832,7 @@ def _main():
     # test_torch_dataloader()
     # test_torch_save()
 
-    test_torch_layer()
+    # test_torch_layer()
 
 
 if __name__ == "__main__":
