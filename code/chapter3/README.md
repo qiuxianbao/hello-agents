@@ -438,6 +438,125 @@ Softmax：【转换为概率分布，选择概率最高的词作为输出】
 * 层归一化 (Norm)：该操作对单个样本的所有特征进行归一化，使其均值为0，方差为1。这解决了模型训练过程中的内部协变量偏移 (
   Internal Covariate Shift) 问题，使每一层的输入分布保持稳定，从而加速模型收敛 并提高训练的稳定性。
 
+# Transformer架构（AI By Hand）
+
+参考资料：
+
+- https://www.zhihu.com/question/596771388/answer/119375053579
+- https://bbycroft.net/llm
+- https://www.byhand.ai/
+
+![image](images/transformer.png)
+
+## 1.Embedding
+
+Embedding 就是个翻译，让人工智能更容易理解你说的是什么
+
+### 独热编码
+
+大语言模型（如 DeepSeek）处理自然语言输入时的第一步：**独热编码（One-Hot Encoding）**的矩阵表示
+它的主要作用是将人类能看懂的“文字”转换为计算机能处理的“数学矩阵”（行代表的是词表，列代表的是输入序列）
+“独热（One-Hot）”——每一列（代表一个字）中，只有一个位置是“热”的（值为 1），其余都是“冷”的（值为 0）
+
+![img.png](images/transformer-one-hot.png)
+
+### 矩阵乘法
+
+MMULT(Word embedding, one hot)**
+![img.png](images/transformer-one-hot-mmult.png)
+
+### 嵌入和词表
+
+![transformer-encoder-tokenizer-embedding.png](images/transformer-encoder-tokenizer-embedding.png)
+
+## 2.Positional Encoding
+
+注意力机制是不考虑Token位置的，这个就很可怕了，主语宾语都不分的话，那肯定无法正确理解意思的，每个词的位置信息也是很重要的，但是需要保证每个位置的PE编码不一样就行。
+
+PE 的值可以直接按照位置顺序给到，当然也可以使用某种公式计算。
+Transformer 中采用了后者，即便是用公式，位置向量也有多种表示方式，其中一种常见的是**正弦 - 余弦位置编码（Sinusoidal Position
+Encoding）**
+
+![img.png](images/transformer-pe-sinusoidal.png)
+
+**X = Word Embedding + PE**
+
+![img.png](images/transformer-x.png)
+
+## 3.Multi-Head Attention
+
+![img.png](images/transformer-mha-qkv.png)
+
+Query（查询）：代表当前关注的位置（如当前处理的单词）。  
+Key（键）：代表序列中所有位置的标识，用于与 Query 匹配相似性。  
+Value（值）：存储实际的信息，通过注意力权重加权后生成最终输出
+
+**参数**
+
+- Sequence：输入序列的 Token 数量。
+- Embedding size：模型的基准维度 (d_{model})
+- h：多头注意力机制中的总头数
+- d_{k}：单个注意力头的维度。每个头的维度由 d_k = d_{model} / h 决定
+
+**矩阵维度拆解(X、W、Q/K/V)**
+
+- X（输入矩阵）：维度为 Sequence X Embedding size。它代表（序列长度 X 词向量维度 (d_{model})）。
+- (W)（权重矩阵）：维度为 Embedding size X (d_{k})。它是模型需要学习的参数。
+- (Q/K/V)（输出矩阵）：维度为 Sequence X (d_{k})。它是降维后的注意力矩阵。
+
+**核心公式**
+
+- (XW_Q = Q)（生成查询矩阵）
+- (XW_K = K)（生成键矩阵）
+- (XW_V = V)（生成值矩阵
+
+示例：Q计算
+![img.png](images/transformer-mha-q.png)
+
+**缩放点积注意力机制（Scaled Dot-Product Attention）**
+![img.png](images/transformer-mha-scaled-dot-product-attention.png)
+
+Q、K、V的计算过程，`AI By Hand` 中做了转置
+![img.png](images/transformer-mha-scaled-dot-product-attention-transpose.png)
+
+示例：Head 0计算
+![img.png](images/transformer-mha-head0.png)
+
+同理可以计算 Head 1，得到结果拼接后做多头注意力
+![img.png](images/transformer-mha-contact.png)
+
+## 4.Add&Norm
+
+**Add，残差连接**，是一种在深度神经网络中非常常用的技术，将输入直接传递到输出，与经过网络层变换后的结果相加，目的就是让多层的神经网络也能感受到最初的输入。
+
+残差连接（Residual Connection）最早由何恺明等人在2015年提出的ResNet（残差网络）中引入。
+它的核心思想是通过引入“跳跃连接”（Skip Connection），从而缓解深度网络中的梯度消失或爆炸问题。
+
+**Norm，层归一化。**
+Z-Score Normalization：将数据转换为均值为0、标准差为1的分布
+
+![img.png](images/transformer-add-norm.png)
+
+另外在Add & Norm层中还有个操作，叫做**Scaled & shift（缩放和偏移）**，其核心作用是对输入数据进行标准化处理，以提高模型的稳定性和训练效率。
+![img.png](images/transformer-scaled-shift-.png)
+
+## 5.Feed Forward Neutral Network
+
+- 第一层全连接：将输入升维到 4×d_{model} ，这里放大2 倍。
+- ReLU：引入非线性，过滤负值。
+- 第二层全连接：降维回 d_{model}
+
+![img.png](images/transformer-fnn.png)
+
+## 6.Masked Multi-Head Attention
+
+Decoder部分和Encoder非常相似，可以看到除了前面的Masked MHA以外，和Encoder一模一样的，
+所以 **Decoder = Masked MHA + Encoder**
+
+## 7.Liner
+
+## 8.Softmax
+
 # Decoder-Only 架构
 
 # 大模型交互
